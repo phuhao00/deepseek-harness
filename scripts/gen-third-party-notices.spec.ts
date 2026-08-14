@@ -127,6 +127,23 @@ describe('virtualManifest', () => {
       rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('skips a prefix-matching directory that has no package.json and keeps scanning', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-notices-hollow-'))
+    try {
+      const name = '@scope/pkg'
+      const version = '3.0.0'
+      const store = join(root, 'store')
+      mkdirSync(join(store, `${name.replace('/', '+')}@${version}`, 'node_modules'), { recursive: true })
+      const real = join(store, `${name.replace('/', '+')}_truncated`, 'node_modules', name)
+      mkdirSync(real, { recursive: true })
+      writeFileSync(join(real, 'package.json'), JSON.stringify({ name, version, license: 'MIT' }))
+
+      expect(virtualManifest(store, name)).toMatchObject({ name, version, license: 'MIT' })
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('parseVendoredRows', () => {

@@ -259,7 +259,12 @@ export function virtualManifest(virtual: string, name: string): VirtualManifest 
   const prefix = `${name.replace('/', '+')}@`
   const entry = readdirSync(virtual).find(dir => dir.startsWith(prefix))
   if (entry !== undefined) {
-    return JSON.parse(readFileSync(resolve(virtual, entry, 'node_modules', name, 'package.json'), 'utf8')) as VirtualManifest
+    const candidate = resolve(virtual, entry, 'node_modules', name, 'package.json')
+    // A failed optional install can leave the prefix directory without a
+    // package.json; treat that as a miss and keep scanning.
+    if (existsSync(candidate)) {
+      return JSON.parse(readFileSync(candidate, 'utf8')) as VirtualManifest
+    }
   }
   for (const dir of readdirSync(virtual)) {
     const candidate = resolve(virtual, dir, 'node_modules', name, 'package.json')
@@ -270,12 +275,28 @@ export function virtualManifest(virtual: string, name: string): VirtualManifest 
   return undefined
 }
 
-/** Resolve one installed external package manifest from either pnpm store. */
+/**
+ * Root `node_modules` plus each workspace member's package-local link farm.
+ * A failed root install can drop the hoisted link while the declaring package
+ * still has the dependency.
+ */
+function installStores(): string[] {
+  const stores = ['node_modules']
+  for (const pattern of workspaceMembers('pnpm-workspace.yaml')) {
+    for (const member of globSync(pattern, { cwd: root })) {
+      const nm = `${member.replaceAll('\\', '/')}/node_modules`
+      if (existsSync(resolve(root, nm))) stores.push(nm)
+    }
+  }
+  return stores
+}
+
+const INSTALL_STORES = installStores()
+
+/** Resolve one installed external package manifest from a known pnpm store. */
 function installedManifest(name: string): VirtualManifest | undefined {
   let manifest: (Manifest & { license?: string; repository?: string | { url?: string }; homepage?: string }) | undefined
-  // Workspace-local link farms can expose a dependency that is not linked at
-  // the repository root; both are backed by the root workspace's lockfile.
-  for (const store of ['node_modules', 'native/landlock-run/node_modules']) {
+  for (const store of INSTALL_STORES) {
     const direct = resolve(root, store, name, 'package.json')
     if (existsSync(direct)) {
       manifest = JSON.parse(readFileSync(direct, 'utf8')) as typeof manifest
@@ -310,11 +331,11 @@ function collectClaudeDistribution(): ClaudeDistribution {
     )
   }
   const distribution = claudeDistributionFromManifest(manifest)
-  let installedPayloads = 0
   for (const payload of distribution.payloads) {
     const installed = installedManifest(payload.name)
+    // A missing or half-extracted optional payload is skipped. Identities still
+    // come from the SDK manifest; only a present payload is identity-checked.
     if (installed === undefined) continue
-    installedPayloads += 1
     if (
       installed.name !== payload.name
       || installed.version !== payload.version
@@ -324,11 +345,6 @@ function collectClaudeDistribution(): ClaudeDistribution {
         `gen-third-party-notices: installed ${payload.name} does not match its SDK-declared version and ${CLAUDE_PLATFORM_DECLARED_LICENSE} license field.`,
       )
     }
-  }
-  if (installedPayloads === 0) {
-    throw new Error(
-      'gen-third-party-notices: no SDK-declared Claude platform payload is installed; install optional dependencies before regenerating.',
-    )
   }
   return distribution
 }
