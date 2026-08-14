@@ -39,7 +39,7 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
     await ctx.plugin(SystemPrompt)
-    await expect(ctx.plugin(OpenMontage, {})).rejects.toThrow(
+    await expect(ctx.plugin(OpenMontage, {} as unknown as OpenMontage.Config)).rejects.toThrow(
       'openmontage: config.root must be an absolute path, got undefined',
     )
   })
