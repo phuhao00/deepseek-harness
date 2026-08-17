@@ -26,6 +26,12 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 |---|---|---|
 | `root` | `OPENMONTAGE_ROOT` | OpenMontage 检出的绝对路径。必须包含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。省略 `root` 时在加载期从环境变量解析，然后校验该目录树。 |
 | `update` | `pull` | 加载期 git 同步：`pull` 在干净工作区落后上游时 fetch 并快进；`check` 落后则失败；`off` 跳过 git。可用 `OPENMONTAGE_UPDATE` 覆盖。 |
+| `tokenPlanKeyEnv` | 依次尝试 `QWEN_TOKEN_PLAN_CN_API_KEY`、`QWEN_TOKEN_PLAN_API_KEY`、`DASHSCOPE_API_KEY` | 写入检出 `.env` 的 `DASHSCOPE_API_KEY` 的环境变量名，供 HappyHorse / 万相 / 千问语音合成工具使用。 |
+| `tokenPlanBaseUrl` | 按解析到的变量推断 | DashScope / Token Plan API 源站。 |
+| `tokenPlanVideoModel` | `happyhorse-1.1-t2v` | 写入检出的默认 Token Plan 视频模型。 |
+| `tokenPlanImageModel` | `wan2.7-image` | 写入检出的默认 Token Plan 图片模型。 |
+| `tokenPlanTtsModel` | `qwen-audio-3.0-tts-plus` | 写入检出的默认 Token Plan 语音合成模型。 |
+| `tokenPlanTtsVoice` | `longanhuan_v3.6` | 写入检出的默认千问语音合成音色。 |
 
 随包组合补丁读取 `OPENMONTAGE_ROOT`：
 
@@ -40,11 +46,11 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 
 环境变量缺失且省略 `config.root` 时，`apply()` 在加载期失败。相对路径、缺失目录、或不是 OpenMontage 检出的目录，也会让 `apply()` 抛出带 `openmontage:` 前缀的错误。插件不会跳过错误的 `root`。树校验通过后，`update: pull` 会 fetch `origin`，并在干净工作区落后上游时快进；落后且工作区脏则加载失败。`check` 在落后时失败且不合并。没有 `.git` 的目录保持不动，以便夹具树仍能加载。
 
-设置完成后，把 `OPENMONTAGE_ROOT` 导出为检出的绝对路径，或在 profile 补丁中重写 `config.root`。OpenMontage 的 API 密钥留在该检出的 `.env` 里；本插件不代理它们。
+设置完成后，把 `OPENMONTAGE_ROOT` 导出为检出的绝对路径，或在 profile 补丁中重写 `config.root`。已配置的 Qwen Token Plan 密钥会在加载时写入该检出的 `.env`，供 `token_plan_video`、`token_plan_image` 和 `token_plan_tts` 扣套餐额度。Token Plan 没有音乐生成模型。其他厂商密钥仍留在检出 `.env`，本插件不代理。
 
 ## 插件
 
-`inject: ['skills', 'systemPrompt']`。加载时它会注册：
+`inject: ['skills', 'systemPrompt', 'credentials']`。加载时它会注册：
 
 - 提示词变量 `openmontage_root` → `config.root`
 - 提示词段 `openmontage`（`order` 为 150）

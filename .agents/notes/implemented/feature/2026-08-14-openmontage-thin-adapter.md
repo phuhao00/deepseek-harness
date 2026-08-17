@@ -16,7 +16,7 @@ Users want [OpenMontage](https://github.com/calesthio/OpenMontage) available as 
 - prompt section `openmontage` (`order` 150)
 - bundled skills `openmontage` and `openmontage-onboarding`
 
-The agent reads the checkout and runs its Python tools through the existing bash and filesystem tools. The bundle patch reads `OPENMONTAGE_ROOT` and `OPENMONTAGE_UPDATE` (default `pull`). After the tree validates, `apply()` fetches `origin` and fast-forwards a clean worktree that is behind upstream; `check` fails when behind; `off` skips git; a tree without `.git` is left unchanged. The row is absent from shipped `dsh-base`, `web`, and `headless` templates.
+The agent reads the checkout and runs its Python tools through the existing bash and filesystem tools. The bundle patch reads `OPENMONTAGE_ROOT` and `OPENMONTAGE_UPDATE` (default `pull`). After the tree validates, `apply()` fetches `origin` and fast-forwards a clean worktree that is behind upstream; `check` fails when behind; `off` skips git; a tree without `.git` is left unchanged. When a Qwen Token Plan or DashScope key is in the process env or `ctx.credentials`, `apply()` copies it into the checkout `.env` as `DASHSCOPE_API_KEY` plus Token Plan model defaults so `token_plan_video` / `token_plan_image` / `token_plan_tts` become available. Token Plan has no music-generation model. The row is absent from shipped `dsh-base`, `web`, and `headless` templates.
 
 The adapter ships MIT-licensed Harness-owned prompt text and gateway skills. It does not vendor OpenMontage sources.
 
@@ -36,4 +36,4 @@ A profile must add the bundle or insert the row and supply an absolute checkout 
 
 ## Testing
 
-Package unit tests reject a missing, relative, or non-checkout `root`, pin interpolated `assemble()` text plus skill dispose, and pin `update` modes against a local git remote (`off`/`check`/`pull`, dirty-tree refusal). `tests/loader-composition.spec.ts` boots a temporary `cordis.yml` through the Loader with a fixture tree that contains only `AGENT_GUIDE.md` and `pipeline_defs/`.
+Package unit tests reject a missing, relative, or non-checkout `root`, pin interpolated `assemble()` text plus skill dispose, pin `update` modes against a local git remote (`off`/`check`/`pull`, dirty-tree refusal), and pin Token Plan `.env` sync when a key is present versus absent. `tests/loader-composition.spec.ts` boots a temporary `cordis.yml` through the Loader with a fixture tree that contains only `AGENT_GUIDE.md` and `pipeline_defs/`.

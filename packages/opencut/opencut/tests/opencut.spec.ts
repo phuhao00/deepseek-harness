@@ -37,6 +37,15 @@ async function fixtureOpenMontage(): Promise<string> {
   return dir
 }
 
+function EnvCredentials(ctx: Context): void {
+  ctx.provide('credentials', {
+    resolve: async (ref: string) => {
+      const value = process.env[ref]?.trim() ?? ''
+      return value === '' ? undefined : { value, source: 'env' }
+    },
+  })
+}
+
 async function mount(root: string): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>> }> {
   const ctx = new Context()
   await ctx.plugin(SkillRegistry)
@@ -148,6 +157,7 @@ describe('@deepseek-ai/dsh-opencut', () => {
     const cut = await fixtureOpenCut()
     const montage = await fixtureOpenMontage()
     const ctx = new Context()
+    EnvCredentials(ctx)
     await ctx.plugin(SkillRegistry)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(OpenMontage, { root: montage })
