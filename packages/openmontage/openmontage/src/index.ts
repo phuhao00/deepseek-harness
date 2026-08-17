@@ -19,11 +19,14 @@ import {
   type SkillDefinition,
   type SkillProvider,
 } from '@deepseek-ai/dsh-skill'
-// Declaration merge only: makes ctx.systemPrompt visible for the section registration.
+// Declaration merge only: makes ctx.systemPrompt and ctx.credentials visible.
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-credentials'
 import { syncGitCheckout, type CheckoutUpdateMode } from './checkout-sync.ts'
+import { syncTokenPlanCheckout } from './token-plan-sync.ts'
 
 export type { CheckoutUpdateMode }
+export type { TokenPlanBinding, TokenPlanSyncConfig } from './token-plan-sync.ts'
 
 const PROVIDER_NAME = 'openmontage'
 const RESOURCE_BASE = {
@@ -34,7 +37,7 @@ const INVOCATION = { modelInvocable: true, userInvocable: true } as const
 const ROOT_PLACEHOLDER = '{{openmontage_root}}'
 
 /** Model-visible OpenMontage operating section. Interpolates `{{openmontage_root}}`. */
-export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.'
+export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). When a Qwen Token Plan or DashScope key is configured, prefer the checkout tools `token_plan_video`, `token_plan_image`, and `token_plan_tts` (HappyHorse / Wan / Qwen-Audio TTS) and do not require FAL_KEY, ELEVENLABS_API_KEY, or other vendor keys first. Token Plan has no music-generation model; keep Pixabay or the local music library for beds. Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.'
 
 const PRODUCTION_DESCRIPTION = 'Run an OpenMontage video production pipeline from a specific brief. Use when the user asks to make, create, produce, or generate a video with a concrete topic, duration, format, or footage.'
 const ONBOARDING_DESCRIPTION = 'Introduce OpenMontage capabilities when the user is exploring video production without a specific brief. Use for vague requests such as making a video or asking what the agent can produce.'
@@ -67,12 +70,34 @@ export interface Config {
    * behind upstream; `check` fails when behind; `off` skips git.
    */
   update?: CheckoutUpdateMode
+  /**
+   * Env ref for the Qwen Token Plan or DashScope key copied into the checkout
+   * `.env`. When omitted, `QWEN_TOKEN_PLAN_CN_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`,
+   * then `DASHSCOPE_API_KEY` are tried.
+   */
+  tokenPlanKeyEnv?: string
+  /** DashScope / Token Plan API origin. Inferred from the resolved ref when omitted. */
+  tokenPlanBaseUrl?: string
+  /** Default Token Plan video model written to the checkout. */
+  tokenPlanVideoModel?: string
+  /** Default Token Plan image model written to the checkout. */
+  tokenPlanImageModel?: string
+  /** Default Token Plan speech model written to the checkout. */
+  tokenPlanTtsModel?: string
+  /** Default Qwen-Audio-TTS voice id written to the checkout. */
+  tokenPlanTtsVoice?: string
 }
 
 /** Config schema: `root` is optional; `apply()` resolves it from the environment. */
 export const Config: z<Config> = z.object({
   root: z.string(),
   update: z.union(['off', 'check', 'pull'] as const).default('pull'),
+  tokenPlanKeyEnv: z.string(),
+  tokenPlanBaseUrl: z.string(),
+  tokenPlanVideoModel: z.string().default('happyhorse-1.1-t2v'),
+  tokenPlanImageModel: z.string().default('wan2.7-image'),
+  tokenPlanTtsModel: z.string().default('qwen-audio-3.0-tts-plus'),
+  tokenPlanTtsVoice: z.string().default('longanhuan_v3.6'),
 })
 
 /**
@@ -94,7 +119,7 @@ export function resolveOpenMontageRoot(config: Config): string {
 /** Cordis plugin name. */
 export const name = 'openmontage'
 /** Services required before the adapter can register. */
-export const inject = ['skills', 'systemPrompt']
+export const inject = ['skills', 'systemPrompt', 'credentials']
 
 /**
  * Return the stat for an existing path, or `undefined` when the path is missing
@@ -175,14 +200,16 @@ function createProvider(root: string): SkillProvider {
 }
 
 /**
- * Validate the OpenMontage checkout and register the operating prompt plus gateway skills.
- * @param ctx - Cordis context with `skills` and `systemPrompt`.
+ * Validate the OpenMontage checkout, sync a Token Plan key into its `.env`,
+ * and register the operating prompt plus gateway skills.
+ * @param ctx - Cordis context with `skills`, `systemPrompt`, and `credentials`.
  * @param config - resolved plugin config.
  */
-export function apply(ctx: Context, config: Config): void {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   const root = resolveOpenMontageRoot(config)
   assertOpenMontageRoot(root)
   syncGitCheckout(root, 'openmontage', config.update ?? 'pull')
+  await syncTokenPlanCheckout(root, config, ctx.credentials)
   ctx.systemPrompt.variable('openmontage_root', () => root)
   ctx.systemPrompt.section({
     name: 'openmontage',

@@ -11,6 +11,7 @@
     { "path": "../../../vendor/schemastery" },
     { "path": "../../skill/skill" },
     { "path": "../../core/system-prompt" },
+    { "path": "../../credentials/credentials" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]
 }

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -17,6 +17,13 @@ afterEach(async () => {
   await Promise.all(temps.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
+beforeEach(() => {
+  vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', '')
+  vi.stubEnv('QWEN_TOKEN_PLAN_API_KEY', '')
+  vi.stubEnv('DASHSCOPE_API_KEY', '')
+  vi.stubEnv('TOKEN_PLAN_BASE_URL', '')
+})
+
 async function fixtureCheckout(options?: {
   guide?: boolean
   pipelines?: boolean
@@ -28,10 +35,25 @@ async function fixtureCheckout(options?: {
   return dir
 }
 
-async function mount(root: string): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>> }> {
+function EnvCredentials(ctx: Context): void {
+  ctx.provide('credentials', {
+    resolve: async (ref: string) => {
+      const value = process.env[ref]?.trim() ?? ''
+      return value === '' ? undefined : { value, source: 'env' }
+    },
+  })
+}
+
+async function withServices(): Promise<Context> {
   const ctx = new Context()
+  EnvCredentials(ctx)
   await ctx.plugin(SkillRegistry)
   await ctx.plugin(SystemPrompt)
+  return ctx
+}
+
+async function mount(root: string): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>> }> {
+  const ctx = await withServices()
   const fiber = await ctx.plugin(OpenMontage, { root })
   return { ctx, fiber }
 }
@@ -39,9 +61,7 @@ async function mount(root: string): Promise<{ ctx: Context; fiber: Awaited<Retur
 describe('@deepseek-ai/dsh-openmontage', () => {
   it('rejects a missing root and unset OPENMONTAGE_ROOT at load', async () => {
     vi.stubEnv('OPENMONTAGE_ROOT', '')
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await expect(ctx.plugin(OpenMontage, {})).rejects.toThrow(
       'openmontage: set config.root or OPENMONTAGE_ROOT to an absolute OpenMontage checkout',
     )
@@ -50,44 +70,34 @@ describe('@deepseek-ai/dsh-openmontage', () => {
   it('resolves OPENMONTAGE_ROOT at load when config.root is omitted', async () => {
     const root = await fixtureCheckout()
     vi.stubEnv('OPENMONTAGE_ROOT', root)
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await ctx.plugin(OpenMontage, {})
     expect((await ctx.systemPrompt.assemble()).variables).toMatchObject({ openmontage_root: root })
   })
 
   it('rejects a relative root', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await expect(ctx.plugin(OpenMontage, { root: 'OpenMontage' }))
       .rejects.toThrow('openmontage: config.root must be an absolute path, got "OpenMontage"')
     expect(await ctx.skills.list()).toEqual([])
   })
 
   it('rejects a missing directory', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     const missing = join(tmpdir(), 'dsh-openmontage-missing', 'no-such-checkout')
     await expect(ctx.plugin(OpenMontage, { root: missing }))
       .rejects.toThrow(`openmontage: config.root is not an existing directory: ${missing}`)
   })
 
   it('rejects a directory without AGENT_GUIDE.md', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     const root = await fixtureCheckout({ guide: false })
     await expect(ctx.plugin(OpenMontage, { root }))
       .rejects.toThrow(`openmontage: ${root} is not an OpenMontage checkout (missing AGENT_GUIDE.md)`)
   })
 
   it('rejects a directory without pipeline_defs/', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     const root = await fixtureCheckout({ pipelines: false })
     await expect(ctx.plugin(OpenMontage, { root }))
       .rejects.toThrow(`openmontage: ${root} is not an OpenMontage checkout (missing pipeline_defs/)`)
@@ -124,6 +134,8 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     const production = await ctx.skills.get('openmontage')
     expect(production?.content).toContain(`The OpenMontage checkout is at \`${root}\`.`)
     expect(production?.content).toContain('opencut-openmontage')
+    expect(production?.content).toContain('token_plan_video')
+    expect(production?.content).toContain('token_plan_tts')
     expect(production?.content).not.toContain('{{openmontage_root}}')
     const onboarding = await ctx.skills.get('openmontage-onboarding')
     expect(onboarding?.content).toContain(`${root}/skills/meta/onboarding.md`)
@@ -137,28 +149,41 @@ describe('@deepseek-ai/dsh-openmontage', () => {
 
   it('fast-forwards a clean checkout that is behind origin', async () => {
     const { clone, marker } = await gitPair()
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await ctx.plugin(OpenMontage, { root: clone, update: 'pull' })
     expect((await readFile(join(clone, 'behind.txt'), 'utf8')).replaceAll('\r\n', '\n')).toBe(marker)
   })
 
   it('fails load when update is check and the checkout is behind', async () => {
     const { clone } = await gitPair()
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await expect(ctx.plugin(OpenMontage, { root: clone, update: 'check' }))
       .rejects.toThrow(/is 1 commit\(s\) behind/)
+  })
+
+  it('copies a Token Plan key into the checkout .env on load', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', 'sk-sp-test-key')
+    await mount(root)
+    const env = await readFile(join(root, '.env'), 'utf8')
+    expect(env).toContain('DASHSCOPE_API_KEY=sk-sp-test-key')
+    expect(env).toContain('TOKEN_PLAN_BASE_URL=https://token-plan.cn-beijing.maas.aliyuncs.com')
+    expect(env).toContain('TOKEN_PLAN_VIDEO_MODEL=happyhorse-1.1-t2v')
+    expect(env).toContain('TOKEN_PLAN_IMAGE_MODEL=wan2.7-image')
+    expect(env).toContain('TOKEN_PLAN_TTS_MODEL=qwen-audio-3.0-tts-plus')
+    expect(env).toContain('TOKEN_PLAN_TTS_VOICE=longanhuan_v3.6')
+  })
+
+  it('leaves the checkout .env unchanged when no Token Plan key is configured', async () => {
+    const root = await fixtureCheckout()
+    await mount(root)
+    await expect(readFile(join(root, '.env'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('fails load when a dirty checkout is behind and update is pull', async () => {
     const { clone } = await gitPair()
     await writeFile(join(clone, 'dirty.txt'), 'local\n')
-    const ctx = new Context()
-    await ctx.plugin(SkillRegistry)
-    await ctx.plugin(SystemPrompt)
+    const ctx = await withServices()
     await expect(ctx.plugin(OpenMontage, { root: clone, update: 'pull' }))
       .rejects.toThrow(/worktree is dirty/)
   })

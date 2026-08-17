@@ -6,3 +6,9 @@
       config:
         root: !!js process.env.OPENMONTAGE_ROOT
         update: !!js process.env.OPENMONTAGE_UPDATE ?? 'pull'
+        tokenPlanKeyEnv: !!js process.env.OPENMONTAGE_TOKEN_PLAN_KEY_ENV
+        tokenPlanBaseUrl: !!js process.env.OPENMONTAGE_TOKEN_PLAN_BASE_URL
+        tokenPlanVideoModel: !!js process.env.OPENMONTAGE_TOKEN_PLAN_VIDEO_MODEL ?? 'happyhorse-1.1-t2v'
+        tokenPlanImageModel: !!js process.env.OPENMONTAGE_TOKEN_PLAN_IMAGE_MODEL ?? 'wan2.7-image'
+        tokenPlanTtsModel: !!js process.env.OPENMONTAGE_TOKEN_PLAN_TTS_MODEL ?? 'qwen-audio-3.0-tts-plus'
+        tokenPlanTtsVoice: !!js process.env.OPENMONTAGE_TOKEN_PLAN_TTS_VOICE ?? 'longanhuan_v3.6'
