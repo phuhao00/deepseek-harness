@@ -77,7 +77,7 @@ describe('ImageModelField', () => {
     expect(screen.getByRole('option', { name: en.imageModelAuto })).toBeTruthy()
     fireEvent.change(select, { target: { value: 'kimi-k2.5' } })
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'agent-default-model',
       ops: [{ op: 'set', path: ['imageModel'], value: 'kimi-k2.5' }],
       expectedRevision: 3,
@@ -100,7 +100,7 @@ describe('ImageModelField', () => {
     )
     fireEvent.change(await screen.findByLabelText(en.imageModel), { target: { value: '' } })
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'agent-default-model',
       ops: [{ op: 'unset', path: ['imageModel'] }],
       expectedRevision: 3,

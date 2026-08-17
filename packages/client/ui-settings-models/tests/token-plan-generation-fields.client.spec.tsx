@@ -185,11 +185,11 @@ describe('TokenPlanGenerationFields', () => {
     fireEvent.change(key, { target: { value: 'sk-or-from-page' } })
     fireEvent.blur(key)
     await waitFor(() => { expect(set).toHaveBeenCalledTimes(1) })
-    expect(set.mock.calls[0]?.[0]).toEqual({
+    expect(set).toHaveBeenCalledWith({
       ref: PAGE_GENERATION_KEY_REF,
       value: 'sk-or-from-page',
     })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'openmontage',
       ops: [{ op: 'set', path: ['tokenPlanKeyEnv'], value: PAGE_GENERATION_KEY_REF }],
       expectedRevision: 4,
@@ -215,7 +215,7 @@ describe('TokenPlanGenerationFields', () => {
     fireEvent.change(key, { target: { value: 'sk-or-from-page' } })
     fireEvent.blur(key)
     await waitFor(() => { expect(set).toHaveBeenCalledTimes(1) })
-    expect(set.mock.calls[0]?.[0]).toEqual({
+    expect(set).toHaveBeenCalledWith({
       ref: 'OPENROUTER_API_KEY',
       value: 'sk-or-from-page',
     })
@@ -239,7 +239,7 @@ describe('TokenPlanGenerationFields', () => {
     )
     fireEvent.change(screen.getByLabelText(en.tokenPlanKeyEnv), { target: { value: 'OPENROUTER_API_KEY' } })
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'openmontage',
       ops: [
         { op: 'set', path: ['tokenPlanKeyEnv'], value: 'OPENROUTER_API_KEY' },
@@ -269,7 +269,7 @@ describe('TokenPlanGenerationFields', () => {
     fireEvent.change(custom, { target: { value: 'OPENROUTER_API_KEY' } })
     fireEvent.blur(custom)
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'openmontage',
       ops: [{ op: 'set', path: ['tokenPlanKeyEnv'], value: 'OPENROUTER_API_KEY' }],
       expectedRevision: 4,
@@ -297,7 +297,7 @@ describe('TokenPlanGenerationFields', () => {
     )).toBe(true)
     fireEvent.change(video, { target: { value: 'wan2.7-t2v' } })
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'openmontage',
       ops: [{ op: 'set', path: ['tokenPlanVideoModel'], value: 'wan2.7-t2v' }],
       expectedRevision: 4,
@@ -324,7 +324,7 @@ describe('TokenPlanGenerationFields', () => {
     fireEvent.change(speech, { target: { value: '' } })
     fireEvent.blur(speech)
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
+    expect(mutate).toHaveBeenCalledWith({
       ns: 'openmontage',
       ops: [{ op: 'unset', path: ['tokenPlanTtsModel'] }],
       expectedRevision: 4,
