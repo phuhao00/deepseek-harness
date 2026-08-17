@@ -4,6 +4,15 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+
+function EnvCredentials(ctx: Context): void {
+  ctx.provide('credentials', {
+    resolve: async (ref: string) => {
+      const value = process.env[ref]?.trim() ?? ''
+      return value === '' ? undefined : { value, source: 'env' }
+    },
+  })
+}
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
@@ -38,6 +47,7 @@ describe('openmontage real Loader composition through cordis.yml', () => {
     ].join('\n'))
 
     context = new Context()
+    EnvCredentials(context)
     context.baseUrl = pathToFileURL(root).href + '/'
     await context.plugin(Loader)
     context.loader.builtins.include = Include

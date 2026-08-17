@@ -26,6 +26,12 @@ OpenMontage remains [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/mai
 |---|---|---|
 | `root` | `OPENMONTAGE_ROOT` | Absolute path to the OpenMontage checkout. Must contain `AGENT_GUIDE.md` and `pipeline_defs/`. Omitted `root` is resolved from the environment at load, then the tree is validated. |
 | `update` | `pull` | Load-time git sync: `pull` fetches and fast-forwards a clean tree that is behind upstream; `check` fails when behind; `off` skips git. Override with `OPENMONTAGE_UPDATE`. |
+| `tokenPlanKeyEnv` | first of `QWEN_TOKEN_PLAN_CN_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `DASHSCOPE_API_KEY` | Env ref whose value is copied into the checkout `.env` as `DASHSCOPE_API_KEY` so HappyHorse / Wan / Qwen-Audio TTS tools can run. |
+| `tokenPlanBaseUrl` | inferred from the resolved ref | DashScope / Token Plan API origin. |
+| `tokenPlanVideoModel` | `happyhorse-1.1-t2v` | Default Token Plan video model written to the checkout. |
+| `tokenPlanImageModel` | `wan2.7-image` | Default Token Plan image model written to the checkout. |
+| `tokenPlanTtsModel` | `qwen-audio-3.0-tts-plus` | Default Token Plan speech model written to the checkout. |
+| `tokenPlanTtsVoice` | `longanhuan_v3.6` | Default Qwen-Audio-TTS voice id written to the checkout. |
 
 The shipped bundle patch reads `OPENMONTAGE_ROOT`:
 
@@ -40,11 +46,11 @@ The shipped bundle patch reads `OPENMONTAGE_ROOT`:
 
 A missing env var and omitted `config.root` fail `apply()` at load. A relative path, a missing directory, or a directory that is not an OpenMontage checkout also fails `apply()` with an `openmontage:` error. The plugin does not skip a bad `root`. After the tree validates, `update: pull` fetches `origin` and fast-forwards a clean worktree that is behind upstream; a dirty tree that is behind fails load. `check` fails when behind without merging. A directory without `.git` is left unchanged so fixture trees still load.
 
-After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate `config.root` in the profile patch. OpenMontage API keys stay in that checkout's `.env`; this plugin does not proxy them.
+After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate `config.root` in the profile patch. A configured Qwen Token Plan key is copied into that checkout's `.env` on load so `token_plan_video`, `token_plan_image`, and `token_plan_tts` can spend plan credits. Token Plan has no music-generation model. Other vendor keys stay in the checkout `.env` and are not proxied.
 
 ## Plugin
 
-`inject: ['skills', 'systemPrompt']`. On load it registers:
+`inject: ['skills', 'systemPrompt', 'credentials']`. On load it registers:
 
 - prompt variable `openmontage_root` → `config.root`
 - prompt section `openmontage` (`order` 150)

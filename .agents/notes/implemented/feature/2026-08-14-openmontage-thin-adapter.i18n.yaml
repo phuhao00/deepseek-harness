@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-14-openmontage-thin-adapter.md
-2026-08-14-openmontage-thin-adapter.md: 9b967ce6c909ee7e2dc9176a7f23345caa15b990
-2026-08-14-openmontage-thin-adapter.zh.md: c2c71a5a7b567af26871306acaeb4f2ce0bde6fb
+2026-08-14-openmontage-thin-adapter.md: f652c69aff08c23134d1c7b2a05a4bd08163d47f
+2026-08-14-openmontage-thin-adapter.zh.md: dd2c95d9481fbe9757edce5c615bded84dcd2e1a
