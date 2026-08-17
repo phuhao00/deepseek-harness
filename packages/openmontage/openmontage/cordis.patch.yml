@@ -1,7 +1,8 @@
-# Opt-in OpenMontage adapter. `root` is required; the bundle reads
-# OPENMONTAGE_ROOT so a missing env var fails Config validation at load.
+# Opt-in OpenMontage adapter. The bundle reads OPENMONTAGE_ROOT; apply()
+# resolves that env var at load and validates the checkout.
 - insert:
     - id: openmontage
       name: '@deepseek-ai/dsh-openmontage'
       config:
         root: !!js process.env.OPENMONTAGE_ROOT
+        update: !!js process.env.OPENMONTAGE_UPDATE ?? 'pull'

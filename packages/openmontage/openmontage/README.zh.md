@@ -24,7 +24,8 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `root` | 无（必填） | OpenMontage 检出的绝对路径。必须包含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。 |
+| `root` | `OPENMONTAGE_ROOT` | OpenMontage 检出的绝对路径。必须包含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。省略 `root` 时在加载期从环境变量解析，然后校验该目录树。 |
+| `update` | `pull` | 加载期 git 同步：`pull` 在干净工作区落后上游时 fetch 并快进；`check` 落后则失败；`off` 跳过 git。可用 `OPENMONTAGE_UPDATE` 覆盖。 |
 
 随包组合补丁读取 `OPENMONTAGE_ROOT`：
 
@@ -34,9 +35,10 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
       name: '@deepseek-ai/dsh-openmontage'
       config:
         root: !!js process.env.OPENMONTAGE_ROOT
+        update: !!js process.env.OPENMONTAGE_UPDATE ?? 'pull'
 ```
 
-缺少该环境变量，或 profile 补丁省略 `root`，会在加载时让 Config 校验失败。相对路径、缺失目录、或不是 OpenMontage 检出的目录，会让 `apply()` 抛出带 `openmontage:` 前缀的错误。插件不会跳过错误的 `root`。
+环境变量缺失且省略 `config.root` 时，`apply()` 在加载期失败。相对路径、缺失目录、或不是 OpenMontage 检出的目录，也会让 `apply()` 抛出带 `openmontage:` 前缀的错误。插件不会跳过错误的 `root`。树校验通过后，`update: pull` 会 fetch `origin`，并在干净工作区落后上游时快进；落后且工作区脏则加载失败。`check` 在落后时失败且不合并。没有 `.git` 的目录保持不动，以便夹具树仍能加载。
 
 设置完成后，把 `OPENMONTAGE_ROOT` 导出为检出的绝对路径，或在 profile 补丁中重写 `config.root`。OpenMontage 的 API 密钥留在该检出的 `.env` 里；本插件不代理它们。
 
@@ -50,6 +52,8 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 
 制作 skill 把 agent 指向 `{root}/AGENT_GUIDE.md`、`pipeline_defs/` 和各阶段导演。入门 skill 在请求含糊时指向 `{root}/skills/meta/onboarding.md`。skill 正文会代入检出路径；它们不复制 OpenMontage 的指令文件。
 
+pipeline 出片后，若已注册 `opencut-openmontage`，操作段会点名它。[`@deepseek-ai/dsh-opencut`](../../opencut/opencut/README.md) 持有该 skill 和编辑器检出。
+
 ## 模型体验
 
 ### OpenMontage 操作段
@@ -61,7 +65,7 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 ##### OpenMontage 操作指引
 
 ```markdown
-Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools.
+Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
 ```
 
 #### Token 影响
@@ -91,3 +95,4 @@ skill 工具可见时，目录描述是一小段固定开销。已加载的正�
 - **OpenMontage 是单独的检出** — 本包不安装 Python、FFmpeg、Remotion 或 OpenMontage API 密钥，也不把该仓库入库。
 - **没有一等 OpenMontage 工具** — 模型使用现有的 bash 与文件系统工具；没有 `openmontage` 工具，也不把 Python registry 包成 MCP。
 - **不在随附 profile 中** — `dsh-base`、`web` 和 `headless` 不挂载这一行；profile 必须添加该组合包或插入该插件。
+- **OpenCut 交接是兄弟适配器** — `opencut-openmontage` 由 `@deepseek-ai/dsh-opencut` 注册；本包只点名该 skill。

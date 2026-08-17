@@ -17,6 +17,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   llm/         LLM capability: Service Definition/Consumer + DeepSeek providers
   e2b/         E2B POC: sandbox + FS/subprocess adapters
   openmontage/ thin adapter for a local OpenMontage video-production checkout
+  opencut/     thin adapter for a local OpenCut rewrite checkout; hands OpenMontage renders to the editor
   shell/        bash capability: Service Definition + local/pwsh providers + shell Consumers
   subprocess/  subprocess capability + local process-tree provider
   terminal/         persistent sessions
