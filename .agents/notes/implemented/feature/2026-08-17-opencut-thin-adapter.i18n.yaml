@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-opencut-thin-adapter.md
+2026-08-17-opencut-thin-adapter.md: 81b94da4a915230d613e74d9c8b2ba420c1f063b
+2026-08-17-opencut-thin-adapter.zh.md: 558e84bfc25fd27ba6228b3ea7880d9ef4f6356a

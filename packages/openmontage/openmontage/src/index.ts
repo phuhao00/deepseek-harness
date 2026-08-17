@@ -21,6 +21,9 @@ import {
 } from '@deepseek-ai/dsh-skill'
 // Declaration merge only: makes ctx.systemPrompt visible for the section registration.
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import { syncGitCheckout, type CheckoutUpdateMode } from './checkout-sync.ts'
+
+export type { CheckoutUpdateMode }
 
 const PROVIDER_NAME = 'openmontage'
 const RESOURCE_BASE = {
@@ -31,7 +34,7 @@ const INVOCATION = { modelInvocable: true, userInvocable: true } as const
 const ROOT_PLACEHOLDER = '{{openmontage_root}}'
 
 /** Model-visible OpenMontage operating section. Interpolates `{{openmontage_root}}`. */
-export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools.'
+export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.'
 
 const PRODUCTION_DESCRIPTION = 'Run an OpenMontage video production pipeline from a specific brief. Use when the user asks to make, create, produce, or generate a video with a concrete topic, duration, format, or footage.'
 const ONBOARDING_DESCRIPTION = 'Introduce OpenMontage capabilities when the user is exploring video production without a specific brief. Use for vague requests such as making a video or asking what the agent can produce.'
@@ -49,16 +52,44 @@ const SKILLS = [
   },
 ] as const
 
+/** Environment variable read at load when `config.root` is omitted. */
+export const OPENMONTAGE_ROOT_ENV = 'OPENMONTAGE_ROOT'
+
 /** Absolute path to a local OpenMontage checkout. */
 export interface Config {
-  /** Absolute filesystem path of the OpenMontage checkout. */
-  root: string
+  /**
+   * Absolute filesystem path of the OpenMontage checkout.
+   * When omitted, `apply()` reads `OPENMONTAGE_ROOT` and then validates the tree.
+   */
+  root?: string
+  /**
+   * Load-time git sync. `pull` fetches and fast-forwards a clean tree that is
+   * behind upstream; `check` fails when behind; `off` skips git.
+   */
+  update?: CheckoutUpdateMode
 }
 
-/** Config schema: `root` is required and has no default. */
+/** Config schema: `root` is optional; `apply()` resolves it from the environment. */
 export const Config: z<Config> = z.object({
   root: z.string(),
+  update: z.union(['off', 'check', 'pull'] as const).default('pull'),
 })
+
+/**
+ * Resolve the OpenMontage checkout path from plugin config or `OPENMONTAGE_ROOT`.
+ * @param config - plugin config, possibly with `root` omitted.
+ * @returns the first non-empty absolute-candidate string; callers still validate it.
+ * @throws when neither `config.root` nor `OPENMONTAGE_ROOT` is set.
+ */
+export function resolveOpenMontageRoot(config: Config): string {
+  const configured = typeof config.root === 'string' ? config.root.trim() : ''
+  if (configured !== '') return configured
+  const fromEnv = process.env[OPENMONTAGE_ROOT_ENV]?.trim() ?? ''
+  if (fromEnv !== '') return fromEnv
+  throw new Error(
+    `openmontage: set config.root or ${OPENMONTAGE_ROOT_ENV} to an absolute OpenMontage checkout`,
+  )
+}
 
 /** Cordis plugin name. */
 export const name = 'openmontage'
@@ -149,12 +180,14 @@ function createProvider(root: string): SkillProvider {
  * @param config - resolved plugin config.
  */
 export function apply(ctx: Context, config: Config): void {
-  assertOpenMontageRoot(config.root)
-  ctx.systemPrompt.variable('openmontage_root', () => config.root)
+  const root = resolveOpenMontageRoot(config)
+  assertOpenMontageRoot(root)
+  syncGitCheckout(root, 'openmontage', config.update ?? 'pull')
+  ctx.systemPrompt.variable('openmontage_root', () => root)
   ctx.systemPrompt.section({
     name: 'openmontage',
     order: 150,
     text: OPENMONTAGE_SECTION_TEXT,
   })
-  ctx.skills.registerProvider(() => createProvider(config.root))
+  ctx.skills.registerProvider(() => createProvider(root))
 }

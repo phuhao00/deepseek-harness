@@ -24,7 +24,8 @@ OpenMontage remains [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/mai
 
 | Field | Default | Meaning |
 |---|---|---|
-| `root` | none (required) | Absolute path to the OpenMontage checkout. Must contain `AGENT_GUIDE.md` and `pipeline_defs/`. |
+| `root` | `OPENMONTAGE_ROOT` | Absolute path to the OpenMontage checkout. Must contain `AGENT_GUIDE.md` and `pipeline_defs/`. Omitted `root` is resolved from the environment at load, then the tree is validated. |
+| `update` | `pull` | Load-time git sync: `pull` fetches and fast-forwards a clean tree that is behind upstream; `check` fails when behind; `off` skips git. Override with `OPENMONTAGE_UPDATE`. |
 
 The shipped bundle patch reads `OPENMONTAGE_ROOT`:
 
@@ -34,9 +35,10 @@ The shipped bundle patch reads `OPENMONTAGE_ROOT`:
       name: '@deepseek-ai/dsh-openmontage'
       config:
         root: !!js process.env.OPENMONTAGE_ROOT
+        update: !!js process.env.OPENMONTAGE_UPDATE ?? 'pull'
 ```
 
-A missing env var or a profile patch that omits `root` fails Config validation at load. A relative path, a missing directory, or a directory that is not an OpenMontage checkout fails `apply()` with an `openmontage:` error. The plugin does not skip a bad `root`.
+A missing env var and omitted `config.root` fail `apply()` at load. A relative path, a missing directory, or a directory that is not an OpenMontage checkout also fails `apply()` with an `openmontage:` error. The plugin does not skip a bad `root`. After the tree validates, `update: pull` fetches `origin` and fast-forwards a clean worktree that is behind upstream; a dirty tree that is behind fails load. `check` fails when behind without merging. A directory without `.git` is left unchanged so fixture trees still load.
 
 After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate `config.root` in the profile patch. OpenMontage API keys stay in that checkout's `.env`; this plugin does not proxy them.
 
@@ -50,6 +52,8 @@ After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate
 
 The production skill points the agent at `{root}/AGENT_GUIDE.md`, `pipeline_defs/`, and stage directors. The onboarding skill points at `{root}/skills/meta/onboarding.md` for vague requests. Skill bodies substitute the checkout path; they do not copy OpenMontage instruction files.
 
+After a pipeline render, the operating section names `opencut-openmontage` when that skill is registered. [`@deepseek-ai/dsh-opencut`](../../opencut/opencut/README.md) owns the skill and the editor checkout.
+
 ## Model Experience
 
 ### OpenMontage operating section
@@ -61,7 +65,7 @@ Every assembly in this plugin's registration scope receives the operating sectio
 ##### OpenMontage operating guidance
 
 ```markdown
-Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools.
+Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
 ```
 
 #### Token effect
@@ -91,3 +95,4 @@ The catalog is prefix-stable while both skills remain registered. Loading a skil
 - **OpenMontage is a separate checkout** — this package does not install Python, FFmpeg, Remotion, or OpenMontage API keys, and it does not vendor that repository.
 - **No first-party OpenMontage tools** — the model uses the existing bash and filesystem tools; there is no `openmontage` tool and no MCP wrap of the Python registry.
 - **Not in shipped profiles** — `dsh-base`, `web`, and `headless` do not mount this row; a profile must add the bundle or insert the plugin.
+- **OpenCut handoff is a sibling adapter** — `opencut-openmontage` is registered by `@deepseek-ai/dsh-opencut`; this package only names the skill.

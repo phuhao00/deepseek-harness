@@ -21,6 +21,10 @@ Do not invent Python wrappers. Discover and call tools from the checkout, with c
 
 Ask the checkout's tool registry for the support envelope and provider menu before calling a paid or consequential tool.
 
+## After a render
+
+If the `opencut-openmontage` skill is registered, load it and hand the pipeline output to the OpenCut editor. Do not start timeline editing until the pipeline's documented review steps are done.
+
 ## Do not
 
 - Skip the pipeline and call generation APIs directly

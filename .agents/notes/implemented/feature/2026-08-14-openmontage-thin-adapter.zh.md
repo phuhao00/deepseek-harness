@@ -16,7 +16,7 @@ Status: implemented
 - 提示词段 `openmontage`（`order` 为 150）
 - 内置 skill `openmontage` 与 `openmontage-onboarding`
 
-agent 读取该检出，并通过现有的 bash 与文件系统工具运行其 Python 工具。组合包补丁读取 `OPENMONTAGE_ROOT`。`dsh-base`、`web` 和 `headless` 都不包含这一行。
+agent 读取该检出，并通过现有的 bash 与文件系统工具运行其 Python 工具。组合包补丁读取 `OPENMONTAGE_ROOT` 和 `OPENMONTAGE_UPDATE`（默认 `pull`）。树校验通过后，`apply()` 会 fetch `origin`，并在干净工作区落后上游时快进；`check` 落后则失败；`off` 跳过 git；没有 `.git` 的树保持不动。随附的 `dsh-base`、`web` 和 `headless` 模板都不包含这一行。
 
 适配器只随包提供 MIT 许可的、Harness 自有的提示词文本和入口 skill。它不把 OpenMontage 源码入库。
 
@@ -32,8 +32,8 @@ agent 读取该检出，并通过现有的 bash 与文件系统工具运行其 P
 
 ## Consequences
 
-profile 必须添加该组合包或插入该行，并提供检出的绝对路径。用户自己克隆并设置 OpenMontage；API 密钥留在该检出的 `.env`。默认的 web 和 headless snapshot 不变。包测试钉住 `root` 的响亮失败、提示词插值、skill 卸载，以及用夹具检出通过 Loader 启动的 `cordis.yml`。根 `AGENTS.md` 的布局行是必要的现行清单；其 `verify-doc-budgets` 上限为 2100，以便在加入该行后仍保留 5% 余量。
+profile 必须添加该组合包或插入该行，并提供检出的绝对路径。用户自己克隆并设置 OpenMontage；API 密钥留在该检出的 `.env`。默认的 web 和 headless snapshot 不变。包测试钉住 `root` 的响亮失败、加载期 git 同步、提示词插值、skill 卸载，以及用夹具检出通过 Loader 启动的 `cordis.yml`。根 `AGENTS.md` 的布局行是必要的现行清单；其 `verify-doc-budgets` 上限为 2100，以便在加入该行后仍保留 5% 余量。
 
 ## Testing
 
-包内单测拒绝缺失、相对或非检出的 `root`，并钉住插值后的 `assemble()` 文本以及 skill 卸载。`tests/loader-composition.spec.ts` 通过 Loader 启动临时 `cordis.yml`，夹具树只含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。
+包内单测拒绝缺失、相对或非检出的 `root`，钉住插值后的 `assemble()` 文本以及 skill 卸载，并用本地 git remote 钉住 `update` 模式（`off`/`check`/`pull`、脏工作区拒绝）。`tests/loader-composition.spec.ts` 通过 Loader 启动临时 `cordis.yml`，夹具树只含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。

@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -12,6 +13,7 @@ const resourcePath = fileURLToPath(new URL('../assets/', import.meta.url))
 const temps: string[] = []
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   await Promise.all(temps.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
@@ -35,13 +37,24 @@ async function mount(root: string): Promise<{ ctx: Context; fiber: Awaited<Retur
 }
 
 describe('@deepseek-ai/dsh-openmontage', () => {
-  it('rejects a missing root before apply', async () => {
+  it('rejects a missing root and unset OPENMONTAGE_ROOT at load', async () => {
+    vi.stubEnv('OPENMONTAGE_ROOT', '')
     const ctx = new Context()
     await ctx.plugin(SkillRegistry)
     await ctx.plugin(SystemPrompt)
-    await expect(ctx.plugin(OpenMontage, {} as unknown as OpenMontage.Config)).rejects.toThrow(
-      'openmontage: config.root must be an absolute path, got undefined',
+    await expect(ctx.plugin(OpenMontage, {})).rejects.toThrow(
+      'openmontage: set config.root or OPENMONTAGE_ROOT to an absolute OpenMontage checkout',
     )
+  })
+
+  it('resolves OPENMONTAGE_ROOT at load when config.root is omitted', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('OPENMONTAGE_ROOT', root)
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(OpenMontage, {})
+    expect((await ctx.systemPrompt.assemble()).variables).toMatchObject({ openmontage_root: root })
   })
 
   it('rejects a relative root', async () => {
@@ -110,6 +123,7 @@ describe('@deepseek-ai/dsh-openmontage', () => {
 
     const production = await ctx.skills.get('openmontage')
     expect(production?.content).toContain(`The OpenMontage checkout is at \`${root}\`.`)
+    expect(production?.content).toContain('opencut-openmontage')
     expect(production?.content).not.toContain('{{openmontage_root}}')
     const onboarding = await ctx.skills.get('openmontage-onboarding')
     expect(onboarding?.content).toContain(`${root}/skills/meta/onboarding.md`)
@@ -120,4 +134,57 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     expect(after.sections.map(section => section.name)).not.toContain('openmontage')
     expect(after.variables).not.toHaveProperty('openmontage_root')
   })
+
+  it('fast-forwards a clean checkout that is behind origin', async () => {
+    const { clone, marker } = await gitPair()
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(OpenMontage, { root: clone, update: 'pull' })
+    expect((await readFile(join(clone, 'behind.txt'), 'utf8')).replaceAll('\r\n', '\n')).toBe(marker)
+  })
+
+  it('fails load when update is check and the checkout is behind', async () => {
+    const { clone } = await gitPair()
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SystemPrompt)
+    await expect(ctx.plugin(OpenMontage, { root: clone, update: 'check' }))
+      .rejects.toThrow(/is 1 commit\(s\) behind/)
+  })
+
+  it('fails load when a dirty checkout is behind and update is pull', async () => {
+    const { clone } = await gitPair()
+    await writeFile(join(clone, 'dirty.txt'), 'local\n')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SystemPrompt)
+    await expect(ctx.plugin(OpenMontage, { root: clone, update: 'pull' }))
+      .rejects.toThrow(/worktree is dirty/)
+  })
 })
+
+function git(root: string, args: string[]): void {
+  const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' })
+  if (result.status !== 0) throw new Error(result.stderr || result.stdout)
+}
+
+async function gitPair(): Promise<{ clone: string; marker: string }> {
+  const remote = await mkdtemp(join(tmpdir(), 'dsh-om-remote-'))
+  const clone = await mkdtemp(join(tmpdir(), 'dsh-om-clone-'))
+  temps.push(remote, clone)
+  git(remote, ['init', '-b', 'main'])
+  git(remote, ['config', 'user.email', 'adapter@test'])
+  git(remote, ['config', 'user.name', 'adapter'])
+  await writeFile(join(remote, 'AGENT_GUIDE.md'), 'guide\n')
+  await mkdir(join(remote, 'pipeline_defs'))
+  await writeFile(join(remote, 'pipeline_defs', '.gitkeep'), '')
+  git(remote, ['add', '.'])
+  git(remote, ['commit', '-m', 'base'])
+  git(clone, ['clone', remote, '.'])
+  const marker = 'updated\n'
+  await writeFile(join(remote, 'behind.txt'), marker)
+  git(remote, ['add', 'behind.txt'])
+  git(remote, ['commit', '-m', 'ahead'])
+  return { clone, marker }
+}

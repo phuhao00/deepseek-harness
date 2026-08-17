@@ -26,6 +26,7 @@ const GROUP_ORDER = [
   'fs',
   'skill',
   'openmontage',
+  'opencut',
   'compact',
   'subagent',
   'web',
