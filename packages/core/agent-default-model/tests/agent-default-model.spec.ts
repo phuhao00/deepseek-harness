@@ -56,6 +56,35 @@ describe('AgentDefaultModelConfig', () => {
     await bench.ctx.fiber.dispose()
   })
 
+  it('keeps a stored imageModel when a composer selection is saved', async () => {
+    const bench = await boot()
+    await bench.settingsFiber.ctx.settings.replace(AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE, {
+      provider: 'qwen-token-plan-cn',
+      model: 'deepseek-v4-pro',
+      imageModel: 'qwen3.6-plus',
+    })
+    expect(bench.defaultModel.preferredImageModel()).toBe('qwen3.6-plus')
+    await bench.defaultModel.saveSelection({
+      provider: 'qwen-token-plan-cn', model: 'deepseek-v4-flash',
+    })
+    expect(bench.defaultModel.currentSelection()).toEqual({
+      provider: 'qwen-token-plan-cn', model: 'deepseek-v4-flash',
+    })
+    expect(bench.defaultModel.preferredImageModel()).toBe('qwen3.6-plus')
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('treats a blank imageModel as unset', async () => {
+    const bench = await boot()
+    await bench.settingsFiber.ctx.settings.replace(AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE, {
+      provider: 'qwen-token-plan-cn',
+      model: 'deepseek-v4-pro',
+      imageModel: '  ',
+    })
+    expect(bench.defaultModel.preferredImageModel()).toBeUndefined()
+    await bench.ctx.fiber.dispose()
+  })
+
   it('clears a stored effort when the saved selection has none', async () => {
     const bench = await boot()
     await bench.defaultModel.saveSelection({

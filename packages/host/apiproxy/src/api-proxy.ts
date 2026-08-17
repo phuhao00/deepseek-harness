@@ -50,6 +50,7 @@ import {
   type SessionLogExportReady,
   type SessionLogCompressionLevel,
 } from './session-export.ts'
+import { declaresImageInput, pickImageCapableModel } from './image-capable-route.ts'
 import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -108,6 +109,7 @@ import {
   inspectApiRemoteSession,
 } from '@deepseek-ai/dsh-api-remotes'
 import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-path-opener.ts'
+import { credentialHint } from './credential-hint.ts'
 
 /** Page size when history is called without maxMessages. */
 const DEFAULT_MAX_MESSAGES = 50
@@ -322,6 +324,9 @@ async function buildModelCatalog(ctx: Context): Promise<{
           name: model.name,
           ...model.description === undefined ? {} : { description: model.description },
           ...reasoning === undefined ? {} : { reasoning },
+          ...resolved.inputModalities === undefined
+            ? {}
+            : { inputModalities: [...resolved.inputModalities] },
         }
       }))
       const group: ModelProviderGroup = {
@@ -618,6 +623,11 @@ export interface ApiProxyDefaults {
    * and undoing it because storage failed would be the worse outcome.
    */
   saveDefaultModelSelection?: (selection: ModelSelection) => Promise<void>
+  /**
+   * Preferred same-provider vision catalog id for an image prompt whose
+   * current model is text-only. Absent or unknown ids keep the Qwen-brand pick.
+   */
+  preferredImageModel?: () => string | undefined
   /** Default project directory for new sessions whose create request carries no cwd. */
   cwd: string
   /** Native open-with-default-application; injectable for carrier tests. */
@@ -2425,12 +2435,31 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             if (hasImage) {
               const current = selectionFor(agent).current
               const modelInfo = await ctx.llm.resolveModelInfo(current.provider, current.model)
-              if (modelInfo.inputModalities !== undefined && !modelInfo.inputModalities.includes('image')) {
-                return err(request, {
-                  code: 'attachment-error',
-                  message: `Model "${current.model}" does not support image input.`,
-                  details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+              if (modelInfo.inputModalities !== undefined && !declaresImageInput(modelInfo)) {
+                const fallback = pickImageCapableModel(
+                  current.provider,
+                  current.model,
+                  await ctx.llm.listModels(current.provider),
+                  defaults.preferredImageModel?.(),
+                )
+                if (fallback === undefined) {
+                  return err(request, {
+                    code: 'attachment-error',
+                    message: `Model "${current.model}" does not support image input.`,
+                    details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+                  })
+                }
+                const resolved = await ctx.llm.resolveCallConfig({
+                  provider: fallback.provider,
+                  model: fallback.id,
                 })
+                selectionFor(agent).current = {
+                  provider: resolved.provider,
+                  model: resolved.model,
+                  ...resolved.reasoningEffort === undefined
+                    ? {}
+                    : { reasoningEffort: resolved.reasoningEffort },
+                }
               }
             }
             const durable = await durablePromptContent(ctx, content)
@@ -3260,11 +3289,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const credentials = ctx.get('credentials')
         if (credentials === undefined) return err(request, credentialsAbsent())
         const entries = await Promise.all(request.payload.refs.map(async (ref) => {
-          const info = await credentials.describe(credentialRef(ref))
+          const branded = credentialRef(ref)
+          const info = await credentials.describe(branded)
           const view: CredentialView = {
             configured: info.configured,
             ...info.source === undefined ? {} : { source: info.source },
             writable: info.writable,
+          }
+          if (info.configured) {
+            const resolved = await credentials.resolve(branded)
+            const value = resolved?.value.trim() ?? ''
+            if (value !== '') view.hint = credentialHint(value)
           }
           return [ref, view] as const
         }))

@@ -12,6 +12,7 @@
     { "path": "../../skill/skill" },
     { "path": "../../core/system-prompt" },
     { "path": "../../credentials/credentials" },
+    { "path": "../../settings/settings" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]
 }
