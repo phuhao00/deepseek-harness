@@ -1,6 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write packages/openmontage/openmontage/README.md
-README.md: d6f53e62f98e9f2dfcb343f9c2c426cf403393db
-README.zh.md: 0f93e534329dce6a433b6d7040f549aa7065aca7
+#   pnpm run verify-translation-pairing --write packages/opencut/opencut/README.md
+README.md: 8fe99cf0fc749115013538fedf48a7987cd21fcc
+README.zh.md: 2babd6c8523bd6dc300b2379d5e966e6c1e09a2b

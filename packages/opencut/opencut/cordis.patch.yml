@@ -1,0 +1,8 @@
+# Opt-in OpenCut adapter. The bundle reads OPENCUT_ROOT; apply()
+# resolves that env var at load and validates the checkout.
+- insert:
+    - id: opencut
+      name: '@deepseek-ai/dsh-opencut'
+      config:
+        root: !!js process.env.OPENCUT_ROOT
+        update: !!js process.env.OPENCUT_UPDATE ?? 'pull'
