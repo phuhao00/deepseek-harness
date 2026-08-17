@@ -1,7 +1,7 @@
 /**
  * credentials domain contract: the web face of the credential-reference seam
- * (`ctx.credentials`). Reads are structurally value-free — a credential view
- * carries configured/source/writable and has no slot for the value — and the
+ * (`ctx.credentials`). Reads never echo the secret — a credential view
+ * carries configured/source/writable and an optional `hint` mask — and the
  * value crosses the wire in exactly one direction, inside `credentials.set`.
  * There is no enumeration method by design: clients learn which references
  * exist from settings schemas and values (`apiKeyEnv` fields).
@@ -17,13 +17,18 @@ export interface CredentialView {
   source?: string
   /** Whether `credentials.set`/`credentials.unset` can affect this reference. */
   writable: boolean
+  /**
+   * Recognizable mask of the stored secret (first four and last four
+   * characters). Present only when configured. Never the full value.
+   */
+  hint?: string
 }
 
 /** Credentials-domain unary methods (the map keys credentials.* of RpcMethodMap). */
 export interface CredentialsApi {
   /**
    * Describe the named references (batch): configured state, winning source,
-   * and writability — never values. An invalid reference name is a
+   * writability, and an optional hint mask — never the secret. An invalid reference name is a
    * `bad-request`; an unknown-but-valid one describes as unconfigured.
    */
   describe(request: RpcRequest<{ refs: string[] }>): Promise<RpcResponse<{ credentials: Record<string, CredentialView> }>>

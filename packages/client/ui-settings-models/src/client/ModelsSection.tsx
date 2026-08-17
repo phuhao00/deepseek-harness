@@ -18,6 +18,8 @@ import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
+import { ImageModelField } from './ImageModelField.tsx'
+import { TokenPlanGenerationFields } from './TokenPlanGenerationFields.tsx'
 import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
@@ -285,6 +287,21 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
     <div className={styles['section']}>
       <h2 className={styles['title']}>{t('title')}</h2>
       <p className={styles['intro']}>{t('intro')}</p>
+      <ImageModelField
+        namespace={state.namespaces.get('agent-default-model')}
+        api={api}
+        controller={controller}
+        readOnly={!state.writable}
+        t={t}
+      />
+      <TokenPlanGenerationFields
+        namespace={state.namespaces.get('openmontage')}
+        rows={state.rows}
+        api={api}
+        controller={controller}
+        readOnly={!state.writable}
+        t={t}
+      />
       {!state.writable && state.status === 'ready' ? <p className={styles['notice']}>{t('readOnly')}</p> : null}
       {savedIdentity === undefined
         ? null

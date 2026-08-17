@@ -253,6 +253,12 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.generationGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

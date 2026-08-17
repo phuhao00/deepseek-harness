@@ -187,7 +187,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'seam',
     implementations: ['credentials-local'],
     consumers: ['llm-deepseek', 'llm-pi-ai', 'apiproxy'],
-    note: 'Configuration carries references to secrets; providers own the values. Consumers resolve per operation, so a rotated credential reaches the very next request; the web gateway exposes value-free views and write-only storage.',
+    note: 'Configuration carries references to secrets; providers own the values. Consumers resolve per operation, so a rotated credential reaches the very next request; the web gateway exposes configured/source/writable views with an optional hint mask, and write-only storage.',
   },
   {
     key: 'sessionTelemetry',

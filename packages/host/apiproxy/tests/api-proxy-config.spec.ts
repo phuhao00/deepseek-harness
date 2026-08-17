@@ -1,7 +1,7 @@
 /**
  * Settings/credentials/llm RPC domains and their host-stream frames over
  * createApiProxy: layered redacted describe, write-path rejection mapping,
- * value-free credential views, the directory/live-route merge, and the three
+ * credential views with an optional hint mask, the directory/live-route merge, and the three
  * invalidation frames (settings/credentials/models changed).
  */
 
@@ -230,7 +230,7 @@ function forwardedSettings(ns: string): HostFrame {
     type: 'host/remote-event',
     event: 'settings/document-updated',
     // The revision is the Host's own counter, so the matcher is the assertion.
-    args: [ns, expect.any(Number)], // oxlint-disable-line typescript/no-unsafe-assignment
+    args: [ns, expect.any(Number)],
   }
 }
 
@@ -352,12 +352,15 @@ describe('settings domain', () => {
     ctx.settings.register(settingsNamespace('web-search-deepseek'), z.object({
       baseURL: z.string(),
     }))
+    ctx.settings.register(settingsNamespace('openmontage'), z.object({
+      tokenPlanVideoModel: z.string(),
+    }))
     const api = createApiProxy(ctx, DEFAULTS)
 
     const value = expectOk(await api.settings.describe(request({})))
     expect(value.namespaces.map(view => view.ns)).toEqual([
       'llm-deepseek', 'some-other-plugin', 'permission', 'ui-theme', 'locale',
-      'ui-conversation', 'shell', 'agent-loop', 'web-search-deepseek',
+      'ui-conversation', 'shell', 'agent-loop', 'web-search-deepseek', 'openmontage',
     ])
     const permission = expectOk(await api.settings.mutate(request({
       ns: 'permission',
@@ -394,6 +397,11 @@ describe('settings domain', () => {
       ops: [{ op: 'set', path: ['baseURL'], value: 'https://search.test/v1' }],
     })))
     expect(webSearch.value).toEqual({ baseURL: 'https://search.test/v1' })
+    const openmontage = expectOk(await api.settings.mutate(request({
+      ns: 'openmontage',
+      ops: [{ op: 'set', path: ['tokenPlanVideoModel'], value: 'happyhorse-2.0-t2v' }],
+    })))
+    expect(openmontage.value).toEqual({ tokenPlanVideoModel: 'happyhorse-2.0-t2v' })
 
     const other = expectOk(await api.settings.update(request({
       ns: 'some-other-plugin',
@@ -586,7 +594,7 @@ describe('credentials domain', () => {
     expect(error.message).toContain('dsh-credentials-local')
   })
 
-  it('describes value-free views and flips state through set/unset with frames', async () => {
+  it('describes views with a hint mask and flips state through set/unset with frames', async () => {
     const ctx = await harness()
     const api = createApiProxy(ctx, DEFAULTS)
     const before = expectOk(await api.credentials.describe(request({ refs: ['OPENAI_API_KEY'] })))
@@ -594,7 +602,9 @@ describe('credentials domain', () => {
     const frames = await collectHost(api, ['host/remote-event'], 2, async () => {
       expectOk(await api.credentials.set(request({ ref: 'OPENAI_API_KEY', value: 'sk-secret' })))
       const after = expectOk(await api.credentials.describe(request({ refs: ['OPENAI_API_KEY'] })))
-      expect(after.credentials).toEqual({ OPENAI_API_KEY: { configured: true, source: 'file', writable: true } })
+      expect(after.credentials).toEqual({
+        OPENAI_API_KEY: { configured: true, source: 'file', writable: true, hint: 'sk-s••••cret' },
+      })
       expect(JSON.stringify(after)).not.toContain('sk-secret')
       expectOk(await api.credentials.unset(request({ ref: 'OPENAI_API_KEY' })))
     })
@@ -608,7 +618,9 @@ describe('credentials domain', () => {
     const ctx = await harness({ credentials: { shadowed: ['DEEPSEEK_API_KEY'] } })
     const api = createApiProxy(ctx, DEFAULTS)
     const described = expectOk(await api.credentials.describe(request({ refs: ['DEEPSEEK_API_KEY'] })))
-    expect(described.credentials['DEEPSEEK_API_KEY']).toEqual({ configured: true, source: 'env', writable: false })
+    expect(described.credentials['DEEPSEEK_API_KEY']).toEqual({
+      configured: true, source: 'env', writable: false, hint: '••••',
+    })
     const setError = expectErr(await api.credentials.set(request({ ref: 'DEEPSEEK_API_KEY', value: 'x' })))
     expect(setError.code).toBe('credential-rejected')
     expect(setError.details).toEqual({ ref: 'DEEPSEEK_API_KEY' })

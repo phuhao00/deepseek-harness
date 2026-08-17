@@ -18,6 +18,7 @@ export const credentialViewSchema = z.object({
   configured: z.boolean(),
   source: z.string().optional(),
   writable: z.boolean(),
+  hint: z.string().optional(),
 }) satisfies z.ZodType<Wire<CredentialView>>
 
 /** credentials.describe request payload. */

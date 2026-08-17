@@ -129,6 +129,26 @@ function registerTextOnly(ctx: Context): void {
   }('Text Only', []))
 }
 
+/** Same-provider catalog used by the image-prompt vision fallback tests. */
+function registerTokenPlanVisionCatalog(ctx: Context): void {
+  ctx.llm.registerAdapter(['qwen-token-plan-cn'], new class extends CatalogAdapter {
+    override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+      return Promise.resolve({
+        provider,
+        id: model,
+        name: model,
+        inputModalities: model.startsWith('qwen') || model.startsWith('kimi')
+          ? ['text', 'image']
+          : ['text'],
+      })
+    }
+  }('Qwen Token Plan CN', [
+    { provider: 'qwen-token-plan-cn', id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', inputModalities: ['text'] },
+    { provider: 'qwen-token-plan-cn', id: 'kimi-k2.5', name: 'Kimi K2.5', inputModalities: ['text', 'image'] },
+    { provider: 'qwen-token-plan-cn', id: 'qwen3.6-flash', name: 'Qwen3.6 Flash', inputModalities: ['text', 'image'] },
+  ]))
+}
+
 describe('Web session model selection', () => {
   it('validates an ordered image batch before persisting any member', async () => {
     const { ctx, agent, sessionId } = await harness()
@@ -201,6 +221,110 @@ describe('Web session model selection', () => {
       error: { code: 'attachment-error', details: { reason: 'TOO_MANY_IMAGES' } },
     })
     expect(saveImage).toHaveBeenCalledTimes(2)
+    await ctx.fiber.dispose()
+  })
+
+  it('switches a text-only Token Plan selection to a same-provider vision model when a prompt carries images', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    registerTokenPlanVisionCatalog(ctx)
+    ctx.provide('attachments', {
+      imageLimits: {
+        maxImageBytes: 4,
+        maxImagesPerMessage: 2,
+        maxMessageImageBytes: 4,
+        maxImagePixels: 4,
+        mediaTypes: ['image/png'],
+      },
+      validateImage: () => Promise.resolve(),
+      saveImage: () => Promise.resolve({
+        attachmentId: 'att-vision', mediaType: 'image/png', bytes: 1, width: 1, height: 1,
+      }),
+    } as never)
+    Object.assign(agent, { followup: vi.fn() })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'qwen-token-plan-cn', model: 'deepseek-v4-pro' }),
+      cwd: '/tmp',
+    })
+
+    const result = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [
+        { type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==' },
+        { type: 'text' as const, text: 'what is in this image' },
+      ],
+    }))
+    expect(result.result.ok).toBe(true)
+    expect(expectValue(await api.sessions.models(request({ sessionId }))).current)
+      .toEqual({ provider: 'qwen-token-plan-cn', model: 'qwen3.6-flash' })
+    await ctx.fiber.dispose()
+  })
+
+  it('uses a configured preferred vision model on an image prompt', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    registerTokenPlanVisionCatalog(ctx)
+    ctx.provide('attachments', {
+      imageLimits: {
+        maxImageBytes: 4,
+        maxImagesPerMessage: 2,
+        maxMessageImageBytes: 4,
+        maxImagePixels: 4,
+        mediaTypes: ['image/png'],
+      },
+      validateImage: () => Promise.resolve(),
+      saveImage: () => Promise.resolve({
+        attachmentId: 'att-preferred', mediaType: 'image/png', bytes: 1, width: 1, height: 1,
+      }),
+    } as never)
+    Object.assign(agent, { followup: vi.fn() })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'qwen-token-plan-cn', model: 'deepseek-v4-pro' }),
+      preferredImageModel: () => 'kimi-k2.5',
+      cwd: '/tmp',
+    })
+
+    const result = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==' }],
+    }))
+    expect(result.result.ok).toBe(true)
+    expect(expectValue(await api.sessions.models(request({ sessionId }))).current)
+      .toEqual({ provider: 'qwen-token-plan-cn', model: 'kimi-k2.5' })
+    await ctx.fiber.dispose()
+  })
+
+  it('still refuses an image prompt when the provider advertises no vision model', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    registerTextOnly(ctx)
+    ctx.provide('attachments', {
+      imageLimits: {
+        maxImageBytes: 4,
+        maxImagesPerMessage: 2,
+        maxMessageImageBytes: 4,
+        maxImagePixels: 4,
+        mediaTypes: ['image/png'],
+      },
+      validateImage: () => Promise.resolve(),
+      saveImage: () => Promise.resolve({
+        attachmentId: 'att-denied', mediaType: 'image/png', bytes: 1, width: 1, height: 1,
+      }),
+    } as never)
+    Object.assign(agent, { followup: vi.fn() })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'text-only', model: 'plain' }),
+      cwd: '/tmp',
+    })
+
+    const denied = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==' }],
+    }))
+    expect(denied.result).toMatchObject({
+      ok: false,
+      error: { code: 'attachment-error', details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' } },
+    })
     await ctx.fiber.dispose()
   })
 

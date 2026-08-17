@@ -26,12 +26,14 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 |---|---|---|
 | `root` | `OPENMONTAGE_ROOT` | OpenMontage 检出的绝对路径。必须包含 `AGENT_GUIDE.md` 和 `pipeline_defs/`。省略 `root` 时在加载期从环境变量解析，然后校验该目录树。 |
 | `update` | `pull` | 加载期 git 同步：`pull` 在干净工作区落后上游时 fetch 并快进；`check` 落后则失败；`off` 跳过 git。可用 `OPENMONTAGE_UPDATE` 覆盖。 |
-| `tokenPlanKeyEnv` | 依次尝试 `QWEN_TOKEN_PLAN_CN_API_KEY`、`QWEN_TOKEN_PLAN_API_KEY`、`DASHSCOPE_API_KEY` | 写入检出 `.env` 的 `DASHSCOPE_API_KEY` 的环境变量名，供 HappyHorse / 万相 / 千问语音合成工具使用。 |
-| `tokenPlanBaseUrl` | 按解析到的变量推断 | DashScope / Token Plan API 源站。 |
+| `tokenPlanKeyEnv` | 依次尝试 `OPENMONTAGE_GENERATION_API_KEY`，然后是通义 Token Plan / DashScope 引用 | 写入检出 `.env` 的 POSIX 凭据名：先作为 `DASHSCOPE_API_KEY`，若本身不是该名再镜像一份，以便 OpenAI 系工具能读到 `OPENAI_API_KEY`。任意提供方引用均可。 |
+| `tokenPlanBaseUrl` | 对已知的通义 Token Plan / DashScope / OpenRouter / 硅基流动 / DeepSeek 引用推断 | API 源站。OpenAI 兼容中转站（`OPENAI_API_KEY`）和其他未知引用留空，除非显式填写。 |
 | `tokenPlanVideoModel` | `happyhorse-1.1-t2v` | 写入检出的默认 Token Plan 视频模型。 |
 | `tokenPlanImageModel` | `wan2.7-image` | 写入检出的默认 Token Plan 图片模型。 |
 | `tokenPlanTtsModel` | `qwen-audio-3.0-tts-plus` | 写入检出的默认 Token Plan 语音合成模型。 |
 | `tokenPlanTtsVoice` | `longanhuan_v3.6` | 写入检出的默认千问语音合成音色。 |
+
+同一套绑定同时也是实时的 `openmontage` Settings 分节。挂载本插件时，模型页可以改密钥引用、源站和四个生成 id。状态行会标出当前解析到的引用、已存密钥的掩码，以及它来自启动环境还是已保存凭据。具名网关（OpenRouter、OpenAI 兼容中转站、硅基流动、DeepSeek、通义 Token Plan / DashScope）会写入引用，已知时一并写入源站。键入的密钥经 `credentials.set` 写入所选可写引用；套餐为自动或所选引用被启动环境锁住时，写入 `OPENMONTAGE_GENERATION_API_KEY`。模型或源站留空则恢复组合默认值并立即重写检出 `.env`。被监视引用上的 `credentials/updated` 会重写同一块。检出的 `token_plan_*` 工具仍需要 DashScope 或 Token Plan 源站；OpenAI 系工具读取 `OPENAI_API_KEY`。
 
 随包组合补丁读取 `OPENMONTAGE_ROOT`：
 
@@ -46,11 +48,11 @@ OpenMontage 仍是 [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/main
 
 环境变量缺失且省略 `config.root` 时，`apply()` 在加载期失败。相对路径、缺失目录、或不是 OpenMontage 检出的目录，也会让 `apply()` 抛出带 `openmontage:` 前缀的错误。插件不会跳过错误的 `root`。树校验通过后，`update: pull` 会 fetch `origin`，并在干净工作区落后上游时快进；落后且工作区脏则加载失败。`check` 在落后时失败且不合并。没有 `.git` 的目录保持不动，以便夹具树仍能加载。
 
-设置完成后，把 `OPENMONTAGE_ROOT` 导出为检出的绝对路径，或在 profile 补丁中重写 `config.root`。已配置的 Qwen Token Plan 密钥会在加载时写入该检出的 `.env`，供 `token_plan_video`、`token_plan_image` 和 `token_plan_tts` 扣套餐额度。Token Plan 没有音乐生成模型。其他厂商密钥仍留在检出 `.env`，本插件不代理。
+设置完成后，把 `OPENMONTAGE_ROOT` 导出为检出的绝对路径，或在 profile 补丁中重写 `config.root`。已配置的生成密钥会在加载时写入该检出的 `.env`。Token Plan 没有音乐生成模型。其他厂商密钥仍留在检出 `.env`，本插件不代理。
 
 ## 插件
 
-`inject: ['skills', 'systemPrompt', 'credentials']`。加载时它会注册：
+`inject: ['skills', 'systemPrompt', 'credentials']`。Settings 是可选的：有提供方时，`apply()` 会注册 `openmontage` 分节。加载时它会注册：
 
 - 提示词变量 `openmontage_root` → `config.root`
 - 提示词段 `openmontage`（`order` 为 150）
@@ -71,7 +73,7 @@ pipeline 出片后，若已注册 `opencut-openmontage`，操作段会点名它�
 ##### OpenMontage 操作指引
 
 ```markdown
-Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
+Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). When the checkout `.env` has a generation key, prefer the checkout tools that match that protocol: `token_plan_video`, `token_plan_image`, and `token_plan_tts` for a DashScope or Token Plan origin, and the checkout's OpenAI-family image/TTS tools when `TOKEN_PLAN_KEY_ENV` names `OPENAI_API_KEY` or an OpenAI-compatible origin. Do not require FAL_KEY, ELEVENLABS_API_KEY, or other vendor keys first. Token Plan has no music-generation model; keep Pixabay or the local music library for beds. Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
 ```
 
 #### Token 影响
