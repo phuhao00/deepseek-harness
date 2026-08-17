@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { LlmModelInfo } from '@deepseek-ai/dsh-llm'
+import type { LlmModelInfo, ModelModality } from '@deepseek-ai/dsh-llm'
 import {
   declaresImageInput,
   pickImageCapableModel,
   providerBrandPrefix,
 } from '../src/image-capable-route.ts'
 
-function entry(id: string, input: readonly string[], provider = 'qwen-token-plan-cn'): LlmModelInfo {
+function entry(id: string, input: readonly ModelModality[], provider = 'qwen-token-plan-cn'): LlmModelInfo {
   return { provider, id, name: id, inputModalities: input }
 }
 
