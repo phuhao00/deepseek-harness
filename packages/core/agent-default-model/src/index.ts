@@ -28,6 +28,11 @@ export interface AgentDefaultModelSettings {
   model: string
   /** Adapter-owned reasoning effort, or provider/default behavior when absent. */
   reasoningEffort?: string
+  /**
+   * Preferred same-provider catalog id for image prompts. Omission leaves
+   * the host to pick a Qwen-branded vision sibling on that route.
+   */
+  imageModel?: string
 }
 
 /** Schema of the default Agent model settings section. */
@@ -35,6 +40,7 @@ export const AGENT_DEFAULT_MODEL_SETTINGS_SCHEMA: z<AgentDefaultModelSettings> =
   provider: z.string().required(),
   model: z.string().required(),
   reasoningEffort: z.string(),
+  imageModel: z.string(),
 })
 
 /** Composition entry for the default model selection. */
@@ -90,16 +96,28 @@ export class AgentDefaultModelConfig extends Service {
   }
 
   /**
+   * Read the preferred vision catalog id for image-prompt fallback.
+   * @returns a trimmed model id, or `undefined` when the field is unset or blank.
+   */
+  preferredImageModel(): string | undefined {
+    const imageModel = this.source().imageModel?.trim()
+    return imageModel === undefined || imageModel === '' ? undefined : imageModel
+  }
+
+  /**
    * Save the complete default model selection. A deployment without a settings
-   * provider keeps its composition entry.
+   * provider keeps its composition entry. A stored {@link AgentDefaultModelSettings.imageModel}
+   * is kept: composer model switches do not own that field.
    * @param next - resolved selection accepted by an entry point.
    * @returns fulfillment after the optional settings write settles.
    */
   async saveSelection(next: ModelSelection): Promise<void> {
+    const imageModel = this.preferredImageModel()
     await this.ctx.get('settings')?.replace(AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE, {
       provider: next.provider,
       model: next.model,
       ...next.reasoningEffort === undefined ? {} : { reasoningEffort: String(next.reasoningEffort) },
+      ...imageModel === undefined ? {} : { imageModel },
     })
   }
 }

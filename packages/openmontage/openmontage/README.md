@@ -26,12 +26,14 @@ OpenMontage remains [AGPL-3.0](https://github.com/calesthio/OpenMontage/blob/mai
 |---|---|---|
 | `root` | `OPENMONTAGE_ROOT` | Absolute path to the OpenMontage checkout. Must contain `AGENT_GUIDE.md` and `pipeline_defs/`. Omitted `root` is resolved from the environment at load, then the tree is validated. |
 | `update` | `pull` | Load-time git sync: `pull` fetches and fast-forwards a clean tree that is behind upstream; `check` fails when behind; `off` skips git. Override with `OPENMONTAGE_UPDATE`. |
-| `tokenPlanKeyEnv` | first of `QWEN_TOKEN_PLAN_CN_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `DASHSCOPE_API_KEY` | Env ref whose value is copied into the checkout `.env` as `DASHSCOPE_API_KEY` so HappyHorse / Wan / Qwen-Audio TTS tools can run. |
-| `tokenPlanBaseUrl` | inferred from the resolved ref | DashScope / Token Plan API origin. |
+| `tokenPlanKeyEnv` | first of `OPENMONTAGE_GENERATION_API_KEY`, then the Qwen Token Plan / DashScope refs | POSIX credential ref copied into the checkout `.env` as `DASHSCOPE_API_KEY` and, when it is not already that name, mirrored as itself so OpenAI-family tools can see `OPENAI_API_KEY`. Any provider ref is accepted. |
+| `tokenPlanBaseUrl` | inferred for known Qwen Token Plan / DashScope / OpenRouter / SiliconFlow / DeepSeek refs | API origin. An OpenAI-compatible relay (`OPENAI_API_KEY`) and any other unknown ref leave this empty unless set. |
 | `tokenPlanVideoModel` | `happyhorse-1.1-t2v` | Default Token Plan video model written to the checkout. |
 | `tokenPlanImageModel` | `wan2.7-image` | Default Token Plan image model written to the checkout. |
 | `tokenPlanTtsModel` | `qwen-audio-3.0-tts-plus` | Default Token Plan speech model written to the checkout. |
 | `tokenPlanTtsVoice` | `longanhuan_v3.6` | Default Qwen-Audio-TTS voice id written to the checkout. |
+
+The same binding is also the live `openmontage` settings section. The Models page edits the key ref, origin, and four generation ids when this plugin is mounted. The status line names the resolved ref, a hint mask of the stored key, and whether it came from the launch environment or a saved credential. Named gateways (OpenRouter, an OpenAI-compatible relay, SiliconFlow, DeepSeek, Qwen Token Plan / DashScope) set the ref and, when known, the origin. A typed key stores through `credentials.set` on the selected writable ref, or on `OPENMONTAGE_GENERATION_API_KEY` when the select is Automatic or the selected ref is launch-environment locked. An empty model or origin field restores the composition default and rewrites the checkout `.env` immediately. A `credentials/updated` for a watched ref rewrites the same block. Checkout `token_plan_*` tools still need a DashScope or Token Plan origin; OpenAI-family tools read `OPENAI_API_KEY`.
 
 The shipped bundle patch reads `OPENMONTAGE_ROOT`:
 
@@ -46,11 +48,11 @@ The shipped bundle patch reads `OPENMONTAGE_ROOT`:
 
 A missing env var and omitted `config.root` fail `apply()` at load. A relative path, a missing directory, or a directory that is not an OpenMontage checkout also fails `apply()` with an `openmontage:` error. The plugin does not skip a bad `root`. After the tree validates, `update: pull` fetches `origin` and fast-forwards a clean worktree that is behind upstream; a dirty tree that is behind fails load. `check` fails when behind without merging. A directory without `.git` is left unchanged so fixture trees still load.
 
-After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate `config.root` in the profile patch. A configured Qwen Token Plan key is copied into that checkout's `.env` on load so `token_plan_video`, `token_plan_image`, and `token_plan_tts` can spend plan credits. Token Plan has no music-generation model. Other vendor keys stay in the checkout `.env` and are not proxied.
+After setup, export `OPENMONTAGE_ROOT` to the absolute checkout path, or restate `config.root` in the profile patch. A configured generation key is copied into that checkout's `.env` on load. Token Plan has no music-generation model. Other vendor keys stay in the checkout `.env` and are not proxied.
 
 ## Plugin
 
-`inject: ['skills', 'systemPrompt', 'credentials']`. On load it registers:
+`inject: ['skills', 'systemPrompt', 'credentials']`. Settings is optional: when a provider is mounted, `apply()` registers the `openmontage` section. On load it registers:
 
 - prompt variable `openmontage_root` → `config.root`
 - prompt section `openmontage` (`order` 150)
@@ -71,7 +73,7 @@ Every assembly in this plugin's registration scope receives the operating sectio
 ##### OpenMontage operating guidance
 
 ```markdown
-Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
+Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout's `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). When the checkout `.env` has a generation key, prefer the checkout tools that match that protocol: `token_plan_video`, `token_plan_image`, and `token_plan_tts` for a DashScope or Token Plan origin, and the checkout's OpenAI-family image/TTS tools when `TOKEN_PLAN_KEY_ENV` names `OPENAI_API_KEY` or an OpenAI-compatible origin. Do not require FAL_KEY, ELEVENLABS_API_KEY, or other vendor keys first. Token Plan has no music-generation model; keep Pixabay or the local music library for beds. Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.
 ```
 
 #### Token effect

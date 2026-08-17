@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as OpenMontage from '@deepseek-ai/dsh-openmontage'
 
 const resourcePath = fileURLToPath(new URL('../assets/', import.meta.url))
@@ -18,6 +20,7 @@ afterEach(async () => {
 })
 
 beforeEach(() => {
+  vi.stubEnv('OPENMONTAGE_GENERATION_API_KEY', '')
   vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', '')
   vi.stubEnv('QWEN_TOKEN_PLAN_API_KEY', '')
   vi.stubEnv('DASHSCOPE_API_KEY', '')
@@ -35,18 +38,50 @@ async function fixtureCheckout(options?: {
   return dir
 }
 
-function EnvCredentials(ctx: Context): void {
+/** In-memory settings document so a live section write can rewrite checkout `.env`. */
+class MemorySettings extends SettingsProvider {
+  doc: Record<string, unknown> = {}
+
+  get writable(): boolean {
+    return true
+  }
+
+  protected load(): Promise<Record<string, unknown>> {
+    return Promise.resolve(structuredClone(this.doc))
+  }
+
+  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
+    this.doc = { ...this.doc, [ns]: structuredClone(section) }
+    return Promise.resolve()
+  }
+}
+
+async function waitForEnv(root: string, needle: string): Promise<string> {
+  const started = Date.now()
+  while (Date.now() - started < 2_000) {
+    try {
+      const env = await readFile(join(root, '.env'), 'utf8')
+      if (env.includes(needle)) return env
+    } catch {
+      // The async settings onChange has not rewritten `.env` yet.
+    }
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  throw new Error(`checkout .env never contained ${needle}`)
+}
+
+function EnvCredentials(ctx: Context, store?: Map<string, string>): void {
   ctx.provide('credentials', {
     resolve: async (ref: string) => {
-      const value = process.env[ref]?.trim() ?? ''
-      return value === '' ? undefined : { value, source: 'env' }
+      const value = store?.get(ref)?.trim() || process.env[ref]?.trim() || ''
+      return value === '' ? undefined : { value, source: store === undefined ? 'env' : 'memory' }
     },
   })
 }
 
-async function withServices(): Promise<Context> {
+async function withServices(store?: Map<string, string>): Promise<Context> {
   const ctx = new Context()
-  EnvCredentials(ctx)
+  EnvCredentials(ctx, store)
   await ctx.plugin(SkillRegistry)
   await ctx.plugin(SystemPrompt)
   return ctx
@@ -172,6 +207,34 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     expect(env).toContain('TOKEN_PLAN_IMAGE_MODEL=wan2.7-image')
     expect(env).toContain('TOKEN_PLAN_TTS_MODEL=qwen-audio-3.0-tts-plus')
     expect(env).toContain('TOKEN_PLAN_TTS_VOICE=longanhuan_v3.6')
+  })
+
+  it('rewrites checkout Token Plan models when the openmontage settings section changes', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', 'sk-sp-test-key')
+    const ctx = await withServices()
+    const settingsFiber = ctx.plugin(MemorySettings)
+    await settingsFiber.await()
+    await ctx.plugin(OpenMontage, { root })
+    await settingsFiber.ctx.settings.replace(OpenMontage.OPENMONTAGE_SETTINGS_NAMESPACE, {
+      tokenPlanVideoModel: 'happyhorse-2.0-t2v',
+      tokenPlanTtsModel: 'qwen-audio-custom',
+    })
+    const env = await waitForEnv(root, 'TOKEN_PLAN_VIDEO_MODEL=happyhorse-2.0-t2v')
+    expect(env).toContain('TOKEN_PLAN_TTS_MODEL=qwen-audio-custom')
+    expect(env).toContain('TOKEN_PLAN_IMAGE_MODEL=wan2.7-image')
+  })
+
+  it('rewrites the checkout .env when a watched Token Plan credential arrives', async () => {
+    const root = await fixtureCheckout()
+    const store = new Map<string, string>()
+    const ctx = await withServices(store)
+    await ctx.plugin(OpenMontage, { root })
+    await expect(readFile(join(root, '.env'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    store.set('QWEN_TOKEN_PLAN_CN_API_KEY', 'sk-sp-from-page')
+    ctx.emit('credentials/updated', 'QWEN_TOKEN_PLAN_CN_API_KEY' as never)
+    const env = await waitForEnv(root, 'DASHSCOPE_API_KEY=sk-sp-from-page')
+    expect(env).toContain('TOKEN_PLAN_BASE_URL=https://token-plan.cn-beijing.maas.aliyuncs.com')
   })
 
   it('leaves the checkout .env unchanged when no Token Plan key is configured', async () => {

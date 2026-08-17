@@ -51,6 +51,7 @@ import {
   type SessionLogExportReady,
   type SessionLogCompressionLevel,
 } from './session-export.ts'
+import { declaresImageInput, pickImageCapableModel } from './image-capable-route.ts'
 import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -109,6 +110,7 @@ import {
   inspectApiRemoteSession,
 } from '@deepseek-ai/dsh-api-remotes'
 import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-path-opener.ts'
+import { credentialHint } from './credential-hint.ts'
 
 /** Page size when history is called without maxMessages. */
 const DEFAULT_MAX_MESSAGES = 50
@@ -116,15 +118,17 @@ const DEFAULT_MAX_MESSAGES = 50
 /**
  * Non-model settings namespaces intentionally served to the Web client. The
  * plugin-owned entries (`agent-loop`, `bash`, `web-search-deepseek`) are the
- * host-plane sections the plugin configuration page edits; a namespace absent
- * here answers `settings-not-exposed` even when its owner registered it, so
- * adding a section to that page is a decision made here rather than by the
- * registering plugin. Moving that declaration to `settings.register()`, so a
- * plugin can expose its own configuration without a change in this package,
- * is deferred work.
+ * host-plane sections the plugin configuration page edits; `openmontage` is
+ * the Models-page Token Plan generation section when that adapter is mounted.
+ * A namespace absent here answers `settings-not-exposed` even when its owner
+ * registered it, so adding a section to that page is a decision made here
+ * rather than by the registering plugin. Moving that declaration to
+ * `settings.register()`, so a plugin can expose its own configuration without
+ * a change in this package, is deferred work.
  */
 const WEB_SETTINGS_NAMESPACES = [
   'agent-loop', 'shell', 'locale', 'permission', 'ui-conversation', 'ui-theme', 'web-search-deepseek',
+  'openmontage',
 ] as const
 
 /** Provider work budget: at most 100 calls and 2,000 inspected hits. */
@@ -253,7 +257,11 @@ function referencedImage(events: readonly SessionEvent[], attachmentId: string):
  * that choice write it through `settings.update`, so it has to cross the
  * configuration boundary or the pickers silently fail to persist.
  */
-const PRODUCT_SETTINGS_NAMESPACES = new Set(['ui-onboarding', AGENT_PRESET_SETTINGS_NAMESPACE])
+const PRODUCT_SETTINGS_NAMESPACES = new Set([
+  'ui-onboarding',
+  'agent-default-model',
+  AGENT_PRESET_SETTINGS_NAMESPACE,
+])
 
 /** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
 const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
@@ -353,6 +361,9 @@ async function buildModelCatalog(ctx: Context): Promise<{
           name: model.name,
           ...model.description === undefined ? {} : { description: model.description },
           ...reasoning === undefined ? {} : { reasoning },
+          ...resolved.inputModalities === undefined
+            ? {}
+            : { inputModalities: [...resolved.inputModalities] },
         }
       }))
       const group: ModelProviderGroup = {
@@ -649,6 +660,11 @@ export interface ApiProxyDefaults {
    * and undoing it because storage failed would be the worse outcome.
    */
   saveDefaultModelSelection?: (selection: ModelSelection) => Promise<void>
+  /**
+   * Preferred same-provider vision catalog id for an image prompt whose
+   * current model is text-only. Absent or unknown ids keep the Qwen-brand pick.
+   */
+  preferredImageModel?: () => string | undefined
   /** Default project directory for new sessions whose create request carries no cwd. */
   cwd: string
   /** Native open-with-default-application; injectable for carrier tests. */
@@ -2485,12 +2501,31 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             if (hasImage) {
               const current = selectionFor(agent).current
               const modelInfo = await ctx.llm.resolveModelInfo(current.provider, current.model)
-              if (modelInfo.inputModalities !== undefined && !modelInfo.inputModalities.includes('image')) {
-                return err(request, {
-                  code: 'attachment-error',
-                  message: `Model "${current.model}" does not support image input.`,
-                  details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+              if (modelInfo.inputModalities !== undefined && !declaresImageInput(modelInfo)) {
+                const fallback = pickImageCapableModel(
+                  current.provider,
+                  current.model,
+                  await ctx.llm.listModels(current.provider),
+                  defaults.preferredImageModel?.(),
+                )
+                if (fallback === undefined) {
+                  return err(request, {
+                    code: 'attachment-error',
+                    message: `Model "${current.model}" does not support image input.`,
+                    details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+                  })
+                }
+                const resolved = await ctx.llm.resolveCallConfig({
+                  provider: fallback.provider,
+                  model: fallback.id,
                 })
+                selectionFor(agent).current = {
+                  provider: resolved.provider,
+                  model: resolved.model,
+                  ...resolved.reasoningEffort === undefined
+                    ? {}
+                    : { reasoningEffort: resolved.reasoningEffort },
+                }
               }
             }
             const durable = await durablePromptContent(ctx, content)
@@ -3323,11 +3358,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const credentials = ctx.get('credentials')
         if (credentials === undefined) return err(request, credentialsAbsent())
         const entries = await Promise.all(request.payload.refs.map(async (ref) => {
-          const info = await credentials.describe(credentialRef(ref))
+          const branded = credentialRef(ref)
+          const info = await credentials.describe(branded)
           const view: CredentialView = {
             configured: info.configured,
             ...info.source === undefined ? {} : { source: info.source },
             writable: info.writable,
+          }
+          if (info.configured) {
+            const resolved = await credentials.resolve(branded)
+            const value = resolved?.value.trim() ?? ''
+            if (value !== '') view.hint = credentialHint(value)
           }
           return [ref, view] as const
         }))
