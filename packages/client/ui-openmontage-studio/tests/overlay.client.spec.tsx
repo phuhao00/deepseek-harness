@@ -160,13 +160,13 @@ describe('StudioOverlay', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ws-1' } })
     await waitFor(() => {
       expect(screen.getByText('工作区路径: /projects/film')).toBeTruthy()
-      expect(screen.getByText('/projects/film')).toBeTruthy()
+      expect(screen.getByText('与工作区相同')).toBeTruthy()
     })
     fireEvent.click(screen.getByRole('button', { name: '选择输出目录' }))
     await waitFor(() => {
       expect(pickDirectory).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByText('/projects/film')).toBeTruthy()
+    expect(screen.getByText('与工作区相同')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '选择输出目录' }))
     await waitFor(() => {
       expect(screen.getByText('/exports/renders')).toBeTruthy()
@@ -174,6 +174,7 @@ describe('StudioOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: '使用工作区目录' }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '使用工作区目录' }).hasAttribute('disabled')).toBe(true)
+      expect(screen.getByText('与工作区相同')).toBeTruthy()
     })
     pickDirectory.mockResolvedValueOnce('/exports/final')
     fireEvent.click(screen.getByRole('button', { name: '选择输出目录' }))
@@ -197,7 +198,8 @@ describe('StudioOverlay', () => {
     })
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ws-1' } })
     await waitFor(() => {
-      expect(screen.getByText('/projects/film')).toBeTruthy()
+      expect(screen.getByText('工作区路径: /projects/film')).toBeTruthy()
+      expect(screen.getByText('与工作区相同')).toBeTruthy()
     })
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
     await waitFor(() => {
