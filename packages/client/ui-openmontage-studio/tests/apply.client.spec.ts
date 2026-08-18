@@ -160,7 +160,7 @@ describe('ui-openmontage-studio apply', () => {
     const b = await bench()
     declare(b.slots, 'sidebar.footer.action', 'shell.page')
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    const overlay = (b.slots.entries('shell.page')[0]!.inject as () => StudioOverlayInjected)()
+    const overlay = (b.slots.entries('shell.page')[0]!.inject as unknown as () => StudioOverlayInjected)()
     await expect(overlay.describeStudio()).resolves.toEqual({
       mounted: true,
       durationSeconds: 30,
@@ -189,21 +189,21 @@ describe('ui-openmontage-studio apply', () => {
     await expect(overlay.connectWorkspace('ws-new' as never)).resolves.toBe('session-1')
     overlay.openSession('session-1' as never)
     expect(b.open).toHaveBeenCalledWith('session-1')
-    await overlay.prompt('session-1' as never, '???????')
-    expect(b.prompt).toHaveBeenCalledWith([{ type: 'text', text: '???????' }], 'queue')
+    await overlay.prompt('session-1' as never, '制作一条视频。')
+    expect(b.prompt).toHaveBeenCalledWith([{ type: 'text', text: '制作一条视频。' }], 'queue')
   })
 
   it('rejects describe, mutate, and prompt failures', async () => {
     const missing = await bench({ namespaces: [] })
     declare(missing.slots, 'shell.page')
     await missing.ctx.plugin({ inject: [...inject], apply }).await()
-    const missingOverlay = (missing.slots.entries('shell.page')[0]!.inject as () => StudioOverlayInjected)()
+    const missingOverlay = (missing.slots.entries('shell.page')[0]!.inject as unknown as () => StudioOverlayInjected)()
     await expect(missingOverlay.describeStudio()).resolves.toMatchObject({ mounted: false })
 
     const denied = await bench({ describeOk: false, mutateOk: false, promptOk: false })
     declare(denied.slots, 'shell.page')
     await denied.ctx.plugin({ inject: [...inject], apply }).await()
-    const overlay = (denied.slots.entries('shell.page')[0]!.inject as () => StudioOverlayInjected)()
+    const overlay = (denied.slots.entries('shell.page')[0]!.inject as unknown as () => StudioOverlayInjected)()
     await expect(overlay.describeStudio()).rejects.toThrow('describe denied')
     await expect(overlay.mutateSettings(15, '720p', '', 'auto', 0)).rejects.toThrow('mutate denied')
     await expect(overlay.prompt('session-1' as never, 'x')).rejects.toThrow('prompt denied')
@@ -211,7 +211,7 @@ describe('ui-openmontage-studio apply', () => {
     const unbound = await bench({ hasSession: false })
     declare(unbound.slots, 'shell.page')
     await unbound.ctx.plugin({ inject: [...inject], apply }).await()
-    const unboundOverlay = (unbound.slots.entries('shell.page')[0]!.inject as () => StudioOverlayInjected)()
+    const unboundOverlay = (unbound.slots.entries('shell.page')[0]!.inject as unknown as () => StudioOverlayInjected)()
     await expect(unboundOverlay.prompt('missing' as never, 'x')).rejects.toThrow('unknown session "missing"')
   })
 
