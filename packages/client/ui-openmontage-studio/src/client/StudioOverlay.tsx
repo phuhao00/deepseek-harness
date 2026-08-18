@@ -130,6 +130,7 @@ type FormProps = {
 function StudioForm({ workspaces, t, onClose, injected }: FormProps) {
   const titleId = useId()
   const closeButton = useRef<HTMLButtonElement | null>(null)
+  const briefInput = useRef<HTMLTextAreaElement | null>(null)
   const [brief, setBrief] = useState('')
   const [durationSeconds, setDurationSeconds] = useState<number | undefined>(undefined)
   const [customDuration, setCustomDuration] = useState('')
@@ -150,7 +151,7 @@ function StudioForm({ workspaces, t, onClose, injected }: FormProps) {
   const busyRef = useRef(false)
 
   useEffect(() => {
-    closeButton.current?.focus()
+    briefInput.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
@@ -274,224 +275,239 @@ function StudioForm({ workspaces, t, onClose, injected }: FormProps) {
     )
   }
 
+  const customDurationActive = !durationPreset && customDuration !== ''
+  const outputIsCustom = outputCustom && outputPath !== '' && outputPath !== workspacePath
+
   return (
     <div className={css.page} role="region" aria-labelledby={titleId}>
-      <div className={css.header}>
-        <h1 id={titleId} className={css.title}>{t('title')}</h1>
-        <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
-          <IconCloseOutline16 size={14} />
-          <span className={css.hiddenLabel}>{t('close')}</span>
-        </button>
-      </div>
-      <div className={css.body}>
-        <label className={css.field}>
-          <span className={css.label}>{t('brief')}</span>
+      <div className={css.sheet}>
+        <div className={css.header}>
+          <h1 id={titleId} className={css.title}>{t('title')}</h1>
+          <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
+            <IconCloseOutline16 size={14} />
+            <span className={css.hiddenLabel}>{t('close')}</span>
+          </button>
+        </div>
+        <div className={css.body}>
           <textarea
-            className={css.textarea}
+            ref={briefInput}
+            className={css.brief}
             value={brief}
             placeholder={t('brief.placeholder')}
-            rows={5}
+            rows={4}
+            aria-label={t('brief')}
             onChange={(event) => { setBrief(event.target.value) }}
           />
-        </label>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('profile')}</legend>
-          <p className={css.hint}>{t('profile.hint')}</p>
-          <div className={css.chips}>
+
+          <div className={css.segment} role="group" aria-label={t('profile')}>
             {STUDIO_GENERATION_PROFILES.map(value => (
               <button
                 key={value}
                 type="button"
                 className={clsx(css.chip, generationProfile === value && css.chipActive)}
                 aria-pressed={generationProfile === value}
+                title={t('profile.hint')}
                 onClick={() => { setGenerationProfile(value) }}
               >
                 {t(`profile.${value}`)}
               </button>
             ))}
           </div>
-        </fieldset>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('duration')}</legend>
-          <div className={css.chips}>
-            {DURATION_PRESETS.map(preset => (
-              <button
-                key={preset}
-                type="button"
-                className={clsx(css.chip, durationSeconds === preset && css.chipActive)}
-                aria-pressed={durationSeconds === preset}
-                onClick={() => {
-                  setDurationSeconds(preset)
-                  setCustomDuration('')
-                }}
-              >
-                {String(preset)}
-              </button>
-            ))}
-            <label className={css.customDuration}>
-              <span>{t('duration.custom')}</span>
-              <input
-                type="number"
-                min={1}
-                className={css.number}
-                value={durationPreset ? '' : customDuration}
+
+          <div className={css.toolbar}>
+            <div className={css.toolRow} role="group" aria-label={t('duration')}>
+              <span className={css.toolLabel}>{t('duration')}</span>
+              <div className={css.chips}>
+                {DURATION_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={clsx(css.option, durationSeconds === preset && css.optionActive)}
+                    aria-pressed={durationSeconds === preset}
+                    onClick={() => {
+                      setDurationSeconds(preset)
+                      setCustomDuration('')
+                    }}
+                  >
+                    {String(preset)}
+                  </button>
+                ))}
+                <label className={clsx(css.customDuration, customDurationActive && css.customDurationActive)}>
+                  <span>{t('duration.custom')}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    className={css.number}
+                    value={durationPreset ? '' : customDuration}
+                    onChange={(event) => {
+                      setCustomDuration(event.target.value)
+                      const next = Number(event.target.value)
+                      if (Number.isFinite(next) && next > 0) setDurationSeconds(next)
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            <div className={css.toolRow} role="group" aria-label={t('resolution')}>
+              <span className={css.toolLabel}>{t('resolution')}</span>
+              <div className={css.chips}>
+                {STUDIO_RESOLUTIONS.map(value => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={clsx(css.option, resolution === value && css.optionActive)}
+                    aria-pressed={resolution === value}
+                    onClick={() => { setResolution(value) }}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className={css.paths}>
+            <div className={css.pathRow}>
+              <select
+                className={css.select}
+                aria-label={t('workspace')}
+                value={createPath !== '' ? '' : workspaceId}
                 onChange={(event) => {
-                  setCustomDuration(event.target.value)
-                  const next = Number(event.target.value)
-                  if (Number.isFinite(next) && next > 0) setDurationSeconds(next)
+                  setWorkspaceId(event.target.value as WorkspaceId | '')
+                  setCreatePath('')
+                  setOutputCustom(false)
+                  setSelectedSlugs(new Set())
                 }}
-              />
-            </label>
-          </div>
-        </fieldset>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('resolution')}</legend>
-          <div className={css.chips}>
-            {STUDIO_RESOLUTIONS.map(value => (
-              <button
-                key={value}
-                type="button"
-                className={clsx(css.chip, resolution === value && css.chipActive)}
-                aria-pressed={resolution === value}
-                onClick={() => { setResolution(value) }}
               >
-                {value}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('upscale')}</legend>
-          <p className={css.hint}>{t('upscale.hint')}</p>
-          <div className={css.chips}>
-            <button
-              type="button"
-              className={clsx(css.chip, upscaleTo === undefined && css.chipActive)}
-              aria-pressed={upscaleTo === undefined}
-              onClick={() => { setUpscaleTo(undefined) }}
-            >
-              {t('upscale.none')}
-            </button>
-            {upscaleOptions.map(value => (
-              <button
-                key={value}
-                type="button"
-                className={clsx(css.chip, upscaleTo === value && css.chipActive)}
-                aria-pressed={upscaleTo === value}
-                onClick={() => { setUpscaleTo(value) }}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <label className={css.field}>
-          <span className={css.label}>{t('workspace')}</span>
-          <select
-            className={css.select}
-            value={createPath !== '' ? '' : workspaceId}
-            onChange={(event) => {
-              setWorkspaceId(event.target.value as WorkspaceId | '')
-              setCreatePath('')
-              setOutputCustom(false)
-              setSelectedSlugs(new Set())
-            }}
-          >
-            <option value="">{t('workspace.placeholder')}</option>
-            {workspaces.map(item => (
-              <option key={item.workspaceId} value={item.workspaceId}>{item.title}</option>
-            ))}
-          </select>
-          {createPath !== ''
-            ? <span className={css.hint}>{t('workspace.new')}: {createPath}</span>
-            : workspacePath !== undefined
-              ? <span className={css.hint}>{t('workspace.path')}: {workspacePath}</span>
-              : null}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              void injected.pickDirectory().then((path) => {
-                if (path === null) return
-                setCreatePath(path)
-                setWorkspaceId('')
-                setOutputCustom(false)
-                setSelectedSlugs(new Set())
-              })
-            }}
-          >
-            {t('workspace.pick')}
-          </Button>
-        </label>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('output')}</legend>
-          <p className={css.hint}>{t('output.hint')}</p>
-          {outputPath !== ''
-            ? <span className={css.hint}>{outputPath}</span>
-            : <span className={css.hint}>{t('output.empty')}</span>}
-          <div className={css.chips}>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void injected.pickDirectory().then((path) => {
-                  if (path === null) return
-                  setOutputPath(path)
-                  setOutputCustom(true)
-                })
-              }}
-            >
-              {t('output.pick')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={workspacePath === undefined || !outputCustom}
-              onClick={() => {
-                setOutputCustom(false)
-                setOutputPath(workspacePath ?? '')
-              }}
-            >
-              {t('output.reset')}
-            </Button>
-          </div>
-        </fieldset>
-        <fieldset className={css.field}>
-          <legend className={css.label}>{t('wiki')}</legend>
-          {wikiLoading && <p className={css.hint}>{t('wiki.loading')}</p>}
-          {!wikiLoading && wikiPages.length === 0 && <p className={css.hint}>{t('wiki.empty')}</p>}
-          {wikiPages.map(page => (
-            <label key={page.slug} className={css.check}>
-              <input
-                type="checkbox"
-                checked={selectedSlugs.has(page.slug)}
-                onChange={() => {
-                  setSelectedSlugs((current) => {
-                    const next = new Set(current)
-                    if (next.has(page.slug)) next.delete(page.slug)
-                    else next.add(page.slug)
-                    return next
+                <option value="">{t('workspace.placeholder')}</option>
+                {workspaces.map(item => (
+                  <option key={item.workspaceId} value={item.workspaceId}>{item.title}</option>
+                ))}
+              </select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void injected.pickDirectory().then((path) => {
+                    if (path === null) return
+                    setCreatePath(path)
+                    setWorkspaceId('')
+                    setOutputCustom(false)
+                    setSelectedSlugs(new Set())
                   })
                 }}
-              />
-              <span>{page.slug}</span>
-            </label>
-          ))}
-        </fieldset>
-        <label className={css.field}>
-          <span className={css.label}>{t('paste')}</span>
-          <textarea
-            className={css.textarea}
-            value={pastedExcerpt}
-            placeholder={t('paste.placeholder')}
-            rows={4}
-            onChange={(event) => { setPastedExcerpt(event.target.value) }}
-          />
-        </label>
-        {error !== undefined && <p className={css.error} role="alert">{error}</p>}
-      </div>
-      <div className={css.footer}>
-        <Button variant="primary" disabled={busy} onClick={submit}>{t('submit')}</Button>
+              >
+                {t('workspace.pick')}
+              </Button>
+            </div>
+            {createPath !== ''
+              ? <p className={css.pathValue}>{t('workspace.new')}: {createPath}</p>
+              : workspacePath !== undefined
+                ? <p className={css.pathValue}>{t('workspace.path')}: {workspacePath}</p>
+                : null}
+            <div className={css.pathMeta}>
+              <span className={css.label}>{t('output')}</span>
+              {outputPath !== ''
+                ? <p className={css.pathValue}>{outputIsCustom ? outputPath : t('output.same')}</p>
+                : <p className={css.hint}>{t('output.empty')}</p>}
+              <button
+                type="button"
+                className={css.linkBtn}
+                onClick={() => {
+                  void injected.pickDirectory().then((path) => {
+                    if (path === null) return
+                    setOutputPath(path)
+                    setOutputCustom(true)
+                  })
+                }}
+              >
+                {t('output.pick')}
+              </button>
+              <button
+                type="button"
+                className={css.linkBtn}
+                disabled={workspacePath === undefined || !outputCustom}
+                onClick={() => {
+                  setOutputCustom(false)
+                  setOutputPath(workspacePath ?? '')
+                }}
+              >
+                {t('output.reset')}
+              </button>
+            </div>
+          </div>
+
+          <details className={css.more}>
+            <summary>{t('section.more')}</summary>
+            <div className={css.moreBody}>
+              <div className={css.toolRow} role="group" aria-label={t('upscale')}>
+                <span className={css.toolLabel} title={t('upscale.hint')}>{t('upscale')}</span>
+                <div className={css.chips}>
+                  <button
+                    type="button"
+                    className={clsx(css.option, upscaleTo === undefined && css.optionActive)}
+                    aria-pressed={upscaleTo === undefined}
+                    onClick={() => { setUpscaleTo(undefined) }}
+                  >
+                    {t('upscale.none')}
+                  </button>
+                  {upscaleOptions.map(value => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={clsx(css.option, upscaleTo === value && css.optionActive)}
+                      aria-pressed={upscaleTo === value}
+                      onClick={() => { setUpscaleTo(value) }}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className={css.label}>{t('wiki')}</span>
+                {wikiLoading && <p className={css.hint}>{t('wiki.loading')}</p>}
+                {!wikiLoading && wikiPages.length === 0 && <p className={css.hint}>{t('wiki.empty')}</p>}
+                {wikiPages.length > 0 && (
+                  <div className={css.wikiList}>
+                    {wikiPages.map(page => (
+                      <label key={page.slug} className={css.check}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSlugs.has(page.slug)}
+                          onChange={() => {
+                            setSelectedSlugs((current) => {
+                              const next = new Set(current)
+                              if (next.has(page.slug)) next.delete(page.slug)
+                              else next.add(page.slug)
+                              return next
+                            })
+                          }}
+                        />
+                        <span>{page.slug}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <label>
+                <span className={css.label}>{t('paste')}</span>
+                <textarea
+                  className={css.textarea}
+                  value={pastedExcerpt}
+                  placeholder={t('paste.placeholder')}
+                  rows={2}
+                  onChange={(event) => { setPastedExcerpt(event.target.value) }}
+                />
+              </label>
+            </div>
+          </details>
+
+          {error !== undefined && <p className={css.error} role="alert">{error}</p>}
+        </div>
+        <div className={css.footer}>
+          <Button className={css.submit} variant="primary" disabled={busy} onClick={submit}>{t('submit')}</Button>
+        </div>
       </div>
     </div>
   )

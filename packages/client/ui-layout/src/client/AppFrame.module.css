@@ -49,6 +49,14 @@
   min-height: 0;
 }
 
+/* An open page paints opaque and swallows scroll so conversation chrome
+   underneath does not show gutters or a stray scrollbar. */
+.pageLayer:has(> *) {
+  pointer-events: auto;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
 .pageLayer > * {
   pointer-events: auto;
   flex: 1;
