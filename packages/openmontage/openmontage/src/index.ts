@@ -32,12 +32,19 @@ import {
   syncTokenPlanCheckout,
 } from './token-plan-sync.ts'
 import {
+  DEFAULT_GENERATION_PROFILE,
+  DEFAULT_OUTPUT_DURATION_SECONDS,
+  DEFAULT_OUTPUT_RESOLUTION,
+  DEFAULT_OUTPUT_UPSCALE_TO,
   mergeTokenPlanSyncConfig,
   OPENMONTAGE_SETTINGS_NAMESPACE,
   OPENMONTAGE_SETTINGS_SCHEMA,
   openMontageSettingsEntry,
   watchedTokenPlanKeyRefs,
+  type OpenMontageGenerationProfile,
+  type OpenMontageOutputResolution,
   type OpenMontageSettings,
+  type OpenMontageUpscaleTarget,
 } from './token-plan-settings.ts'
 
 export type { CheckoutUpdateMode }
@@ -50,8 +57,24 @@ export {
   OPENMONTAGE_GENERATION_API_KEY,
 } from './token-plan-sync.ts'
 export {
+  DEFAULT_GENERATION_PROFILE,
+  DEFAULT_OUTPUT_DURATION_SECONDS,
+  DEFAULT_OUTPUT_RESOLUTION,
+  DEFAULT_OUTPUT_UPSCALE_TO,
+  GENERATION_PROFILES,
+  isGenerationProfile,
+  isOutputResolution,
+  isUpscaleTarget,
+  isValidUpscalePair,
+  normalizeUpscaleTo,
   OPENMONTAGE_SETTINGS_NAMESPACE,
   OPENMONTAGE_SETTINGS_SCHEMA,
+  OUTPUT_RESOLUTIONS,
+  RESOLUTION_RANK,
+  UPSCALE_TARGETS,
+  type OpenMontageGenerationProfile,
+  type OpenMontageOutputResolution,
+  type OpenMontageUpscaleTarget,
 } from './token-plan-settings.ts'
 
 const PROVIDER_NAME = 'openmontage'
@@ -63,7 +86,7 @@ const INVOCATION = { modelInvocable: true, userInvocable: true } as const
 const ROOT_PLACEHOLDER = '{{openmontage_root}}'
 
 /** Model-visible OpenMontage operating section. Interpolates `{{openmontage_root}}`. */
-export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). When the checkout `.env` has a generation key, prefer the checkout tools that match that protocol: `token_plan_video`, `token_plan_image`, and `token_plan_tts` for a DashScope or Token Plan origin, and the checkout\'s OpenAI-family image/TTS tools when `TOKEN_PLAN_KEY_ENV` names `OPENAI_API_KEY` or an OpenAI-compatible origin. Do not require FAL_KEY, ELEVENLABS_API_KEY, or other vendor keys first. Token Plan has no music-generation model; keep Pixabay or the local music library for beds. Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.'
+export const OPENMONTAGE_SECTION_TEXT = 'Video production uses the OpenMontage checkout at {{openmontage_root}}. When the user asks to make, create, produce, or generate a video, load the `openmontage` skill before any production work. When the request is vague or exploratory, load `openmontage-onboarding` first. Every video request must go through an OpenMontage pipeline: read AGENT_GUIDE.md, pick a pipeline under pipeline_defs/, then execute each stage from that checkout. When the user message names an output duration, generation resolution, upscale target, output directory, or generation profile (生成方案), the pipeline must obey that specification and must not change it. An upscale target means generate at the named resolution first, then upscale the finished video to the higher target. When the user message names an output directory, write finished renders there. Generation profiles are agent preferences over tools and keys already available in the checkout: 自动 follows checkout defaults; 极致性价比 prefers lower-cost Token Plan / compatible tools, fewer vendor hops, and low-res-then-upscale when an upscale target is set; 成片优先 prefers finished-pipeline paths that minimize rework; 短剧量产 prefers storyboard-batch and character-consistency workflows from the checkout skills. Do not invent vendor APIs, model ids, or keys that are not configured in the checkout. Prefer checkout Token Plan tools when a generation key is present. Use the existing bash and filesystem tools. Run Python from that checkout\'s `.venv` (`Scripts/python.exe` on Windows, `bin/python` on Unix). When the checkout `.env` has a generation key, prefer the checkout tools that match that protocol: `token_plan_video`, `token_plan_image`, and `token_plan_tts` for a DashScope or Token Plan origin, and the checkout\'s OpenAI-family image/TTS tools when `TOKEN_PLAN_KEY_ENV` names `OPENAI_API_KEY` or an OpenAI-compatible origin. Do not require FAL_KEY, ELEVENLABS_API_KEY, or other vendor keys first. Token Plan has no music-generation model; keep Pixabay or the local music library for beds. Do not write ad-hoc generation scripts or call provider APIs outside the pipeline tools. After a pipeline render, if the `opencut-openmontage` skill is registered, load it to continue timeline editing in OpenCut.'
 
 const PRODUCTION_DESCRIPTION = 'Run an OpenMontage video production pipeline from a specific brief. Use when the user asks to make, create, produce, or generate a video with a concrete topic, duration, format, or footage.'
 const ONBOARDING_DESCRIPTION = 'Introduce OpenMontage capabilities when the user is exploring video production without a specific brief. Use for vague requests such as making a video or asking what the agent can produce.'
@@ -113,6 +136,14 @@ export interface Config {
   tokenPlanTtsModel?: string
   /** Default Qwen-Audio-TTS voice id written to the checkout. */
   tokenPlanTtsVoice?: string
+  /** Default studio output duration in seconds (settings + studio form). */
+  outputDurationSeconds?: number
+  /** Default studio generation resolution (settings + studio form). */
+  outputResolution?: OpenMontageOutputResolution
+  /** Default upscale target after generation. Empty means no upscale. */
+  outputUpscaleTo?: OpenMontageUpscaleTarget | ''
+  /** Default studio generation profile (agent preference). */
+  generationProfile?: OpenMontageGenerationProfile
 }
 
 /** Config schema: `root` is optional; `apply()` resolves it from the environment. */
@@ -125,6 +156,10 @@ export const Config: z<Config> = z.object({
   tokenPlanImageModel: z.string().default(DEFAULT_TOKEN_PLAN_IMAGE_MODEL),
   tokenPlanTtsModel: z.string().default(DEFAULT_TOKEN_PLAN_TTS_MODEL),
   tokenPlanTtsVoice: z.string().default(DEFAULT_TOKEN_PLAN_TTS_VOICE),
+  outputDurationSeconds: z.number().default(DEFAULT_OUTPUT_DURATION_SECONDS),
+  outputResolution: z.union(['480p', '720p', '1080p', '4k'] as const).default(DEFAULT_OUTPUT_RESOLUTION),
+  outputUpscaleTo: z.union(['', '720p', '1080p', '4k'] as const).default(DEFAULT_OUTPUT_UPSCALE_TO),
+  generationProfile: z.union(['auto', 'cost', 'quality', 'drama'] as const).default(DEFAULT_GENERATION_PROFILE),
 })
 
 /**

@@ -1,0 +1,14 @@
+制作一条视频。
+先 load `openmontage` skill，再按 pipeline 执行；用户给出的时长、清晰度、超分目标、输出目录与生成方案必须遵守，不得自行改规格。
+时长：30 秒。清晰度：1080p。
+生成方案：极致性价比。
+工作区目录：/projects/film。
+输出目录：/projects/film。
+简报：
+海边日落宣传片
+
+OpenWiki 上下文：
+## pipeline
+OpenMontage 管线阶段。
+## 粘贴摘录
+角色：向导。
