@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { StudioOverlay, type StudioOverlayInjected } from '../src/client/StudioOverlay.tsx'
+import { StudioOverlay, type StudioOverlayInjected, type StudioSettingsSnapshot } from '../src/client/StudioOverlay.tsx'
 import { createStudioStore } from '../src/client/stores.ts'
 import { zh } from '../src/client/locales.ts'
 import type { WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client'
@@ -331,7 +331,7 @@ describe('StudioOverlay', () => {
       revision: number
     }) => void
     const verbs = injected({
-      describeStudio: vi.fn(() => new Promise((resolve) => {
+      describeStudio: vi.fn(() => new Promise<StudioSettingsSnapshot>((resolve) => {
         resolveDescribe = resolve
       })),
     })
@@ -404,7 +404,7 @@ describe('StudioOverlay', () => {
   it('ignores describe failures after unmount', async () => {
     let rejectDescribe!: (reason: unknown) => void
     const verbs = injected({
-      describeStudio: vi.fn(() => new Promise((_, reject) => {
+      describeStudio: vi.fn(() => new Promise<StudioSettingsSnapshot>((_, reject) => {
         rejectDescribe = reject
       })),
     })
