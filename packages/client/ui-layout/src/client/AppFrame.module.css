@@ -30,10 +30,30 @@
 }
 
 .centerCol {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Center-pane pages sit over conversation; closed entries return null so this
+   layer stays click-through until an occupant opts into pointer events. */
+.pageLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pageLayer > * {
+  pointer-events: auto;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .detailsCol {

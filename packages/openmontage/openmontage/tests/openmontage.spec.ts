@@ -148,6 +148,9 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     expect(renderPrompt(assembly)).toContain(
       OpenMontage.OPENMONTAGE_SECTION_TEXT.replaceAll('{{openmontage_root}}', root),
     )
+    expect(renderPrompt(assembly)).toContain(
+      'When the user message names an output duration, generation resolution, upscale target, output directory, or generation profile (生成方案), the pipeline must obey that specification and must not change it.',
+    )
 
     const listed = await ctx.skills.list()
     expect(listed.map(skill => skill.name).sort()).toEqual(['openmontage', 'openmontage-onboarding'])
@@ -223,6 +226,33 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     const env = await waitForEnv(root, 'TOKEN_PLAN_VIDEO_MODEL=happyhorse-2.0-t2v')
     expect(env).toContain('TOKEN_PLAN_TTS_MODEL=qwen-audio-custom')
     expect(env).toContain('TOKEN_PLAN_IMAGE_MODEL=wan2.7-image')
+  })
+
+  it('seeds studio duration and resolution from Config without writing them to .env', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', 'sk-sp-test-key')
+    const ctx = await withServices()
+    const settingsFiber = ctx.plugin(MemorySettings)
+    await settingsFiber.await()
+    await ctx.plugin(OpenMontage, {
+      root, outputDurationSeconds: 90, outputResolution: '4k', generationProfile: 'cost',
+    })
+    const row = ctx.settings.describe().find(item => item.ns === OpenMontage.OPENMONTAGE_SETTINGS_NAMESPACE)
+    expect(row?.value).toMatchObject({
+      outputDurationSeconds: 90, outputResolution: '4k', generationProfile: 'cost',
+    })
+    await settingsFiber.ctx.settings.replace(OpenMontage.OPENMONTAGE_SETTINGS_NAMESPACE, {
+      outputDurationSeconds: 15,
+      outputResolution: '720p',
+      generationProfile: 'drama',
+    })
+    const env = await waitForEnv(root, 'TOKEN_PLAN_VIDEO_MODEL=happyhorse-1.1-t2v')
+    expect(env).not.toContain('outputDuration')
+    expect(env).not.toMatch(/(?:^|\n)[A-Z0-9_]*=15(?:\n|$)/)
+    expect(env).not.toContain('720p')
+    expect(env).not.toContain('drama')
+    expect(ctx.settings.describe().find(item => item.ns === OpenMontage.OPENMONTAGE_SETTINGS_NAMESPACE)?.value)
+      .toMatchObject({ outputDurationSeconds: 15, outputResolution: '720p', generationProfile: 'drama' })
   })
 
   it('rewrites the checkout .env when a watched Token Plan credential arrives', async () => {

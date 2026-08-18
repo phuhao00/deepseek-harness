@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/openmontage/openmontage/README.md
-README.md: 7802f558b215a1ebfa1e024650ce5fb62987d265
-README.zh.md: 269da7e5cd491739d14beedadaa3777cb11ae853
+README.md: e3dba2ce4e9a60f003934eb1c648a750b1c7d2e8
+README.zh.md: 1f147cd4bd0cd9ce2f2cced9f105e78b32649219
