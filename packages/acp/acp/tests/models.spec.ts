@@ -55,13 +55,11 @@ describe('buildSessionModelCatalog', () => {
     expect(catalog?.configOptions).toEqual([expect.objectContaining({
       type: 'select',
       id: 'model',
-      configId: 'model',
       category: 'model',
       currentValue: 'deepseek-v4-pro',
       options: [{
         value: 'deepseek-v4-pro',
         name: 'deepseek-v4-pro',
-        displayName: 'deepseek-v4-pro',
       }],
     })])
   })

@@ -104,18 +104,15 @@ export async function buildSessionModelCatalog(
   const options = listed.map(model => ({
     value: model.id,
     name: model.name,
-    displayName: model.name,
   }))
-  const configOptions = [{
-    type: 'select' as const,
+  const configOptions: SessionConfigOption[] = [{
+    type: 'select',
     id: 'model',
-    configId: 'model',
     name: 'Model',
-    displayName: 'Model',
-    category: 'model' as const,
+    category: 'model',
     currentValue,
     options,
-  }] as SessionConfigOption[]
+  }]
 
   return {
     configOptions,

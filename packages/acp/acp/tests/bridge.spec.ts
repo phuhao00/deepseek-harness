@@ -84,7 +84,7 @@ describe('automation-only ACP bridge', () => {
       id: 'model',
       category: 'model',
       currentValue: 'mock',
-      options: [{ value: 'mock', name: 'Mock', displayName: 'Mock' }],
+      options: [{ value: 'mock', name: 'Mock' }],
     })])
     expect(created).toMatchObject({
       models: {
