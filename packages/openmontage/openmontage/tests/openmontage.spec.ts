@@ -273,6 +273,26 @@ describe('@deepseek-ai/dsh-openmontage', () => {
     await expect(readFile(join(root, '.env'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('does not rewrite a shared checkout .env when the ACP seat isolates it', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('QWEN_TOKEN_PLAN_CN_API_KEY', 'sk-sp-test-key')
+    vi.stubEnv('OPENMONTAGE_ISOLATE_CHECKOUT_ENV', '1')
+    vi.stubEnv('OPENMONTAGE_GENERATION_PROFILE', 'cost')
+    const { ctx } = await mount(root)
+    await expect(readFile(join(root, '.env'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain(
+      OpenMontage.seatOperatingText('cost'),
+    )
+  })
+
+  it('hides production skills on an edit-stage seat', async () => {
+    const root = await fixtureCheckout()
+    vi.stubEnv('OPENMONTAGE_PIPELINE_STAGE', 'edit')
+    const { ctx } = await mount(root)
+    expect(await ctx.skills.list()).toEqual([])
+    expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain('edit stage')
+  })
+
   it('fails load when a dirty checkout is behind and update is pull', async () => {
     const { clone } = await gitPair()
     await writeFile(join(clone, 'dirty.txt'), 'local\n')

@@ -144,11 +144,13 @@ pnpm dsh --profile headless "summarize this workspace"
 pnpm run demo:cordis
 ```
 
-ACP 自动化服务器通过 JSON-RPC stdio 提供全新 agent 会话，同样需要 `DEEPSEEK_API_KEY`：
+产品 ACP 服务器通过 JSON-RPC stdio 提供全新 agent 会话，同样需要 `DEEPSEEK_API_KEY`。Buzz 和其他 ACP 客户端会 spawn 该进程：
 
 ```sh
-pnpm run demo:acp
+pnpm dsh --profile acp
 ```
+
+`pnpm run demo:acp` 仍是 `examples/acp-agent` 下的示例／快照组合。
 
 ### TODO 标记
 

@@ -28,6 +28,7 @@ describe('parseDshArgs', () => {
     expect(parse(['web'])).toEqual({ mode: 'profile', profile: 'web', patches: [], args: [] })
     expect(parse(['web', '--patch', 'web.yml']))
       .toEqual({ mode: 'profile', profile: 'web', patches: ['web.yml'], args: [] })
+    expect(parse(['--profile', 'acp'])).toEqual({ mode: 'profile', profile: 'acp', patches: [], args: [] })
   })
 
   it('ends the launcher flags at the first token it does not own', () => {
@@ -36,6 +37,8 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'profile', profile: 'tui', patches: [], args: ['--resume', 'abc'] })
     expect(parse(['--profile', 'web', '-h']))
       .toEqual({ mode: 'profile', profile: 'web', patches: [], args: ['-h'] })
+    expect(parse(['--profile', 'acp', '--help']))
+      .toEqual({ mode: 'profile', profile: 'acp', patches: [], args: ['--help'] })
     expect(parse(['web', '--host', '127.0.0.1', '--port', '8080', '--dev']))
       .toEqual({ mode: 'profile', profile: 'web', patches: [], args: ['--host', '127.0.0.1', '--port', '8080', '--dev'] })
     expect(parse(['--profile', 'headless', 'run', 'the', 'tests']))
@@ -68,6 +71,8 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: false, patches: [] })
     expect(parse(['web', '--dump-default-config']))
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: true, patches: [] })
+    expect(parse(['--profile', 'acp', '--dump-default-config']))
+      .toEqual({ mode: 'dump-config', profile: 'acp', defaultOnly: true, patches: [] })
   })
 
   it('rejects missing profile, removed flags, and contradictory inputs', () => {

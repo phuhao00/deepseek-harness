@@ -778,6 +778,12 @@
         "@deepseek-ai/dsh-code-runtime-worker-thread"
       ]
     },
+    "packages/bundle/acp-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-code-runtime-worker-thread",
+        "@deepseek-ai/dsh-acp"
+      ]
+    },
     "packages/bundle/web-app": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"

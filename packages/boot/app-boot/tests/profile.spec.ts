@@ -152,6 +152,7 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web).toContain('@deepseek-ai/dsh-base')
+    expect(PROFILE_TEMPLATES.acp).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'])
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {
@@ -159,6 +160,13 @@ describe('loadProfile', () => {
     }
     expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.bundles)
       .toEqual([...PROFILE_TEMPLATES.web ?? []])
+    try {
+      loadProfile('t', 'acp', anchor, home)
+    } catch {
+      // Same empty-anchor outcome as web: the template still materializes.
+    }
+    expect(readProfileManifest('t', resolveProfileDir('acp', home)).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES.acp ?? []])
   })
 
   it('normalizes only the exact installation-owned headless bundle tuple', () => {
@@ -185,6 +193,21 @@ describe('loadProfile', () => {
     loadProfile('t', 'headless', anchor, customHome)
     expect(readProfileManifest('t', custom).dsh?.profile?.bundles).toEqual([
       '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-headless', 'custom-bundle',
+    ])
+  })
+
+  it('leaves a non-stock acp bundle list as user-owned', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-base': { patch: '[]\n' },
+      '@deepseek-ai/dsh-acp-app': { patch: '[]\n' },
+      'custom-bundle': { patch: '[]\n' },
+    })
+    const home = tmp()
+    const dir = resolveProfileDir('acp', home)
+    initProfile(dir, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app', 'custom-bundle'])
+    loadProfile('t', 'acp', anchor, home)
+    expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app', 'custom-bundle',
     ])
   })
 

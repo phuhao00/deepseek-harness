@@ -46,6 +46,14 @@ import {
   type OpenMontageSettings,
   type OpenMontageUpscaleTarget,
 } from './token-plan-settings.ts'
+import {
+  resolvePipelineStage,
+  resolveSeatGenerationProfile,
+  seatOperatingText,
+  shouldIsolateCheckoutEnv,
+  skillAllowedForStage,
+  type OpenMontagePipelineStage,
+} from './seat-env.ts'
 
 export type { CheckoutUpdateMode }
 export type { TokenPlanBinding, TokenPlanSyncConfig } from './token-plan-sync.ts'
@@ -76,6 +84,19 @@ export {
   type OpenMontageOutputResolution,
   type OpenMontageUpscaleTarget,
 } from './token-plan-settings.ts'
+export {
+  GENERATION_PROFILE_ENV,
+  ISOLATE_CHECKOUT_ENV,
+  PIPELINE_STAGE_ENV,
+  PIPELINE_STAGES,
+  isPipelineStage,
+  resolvePipelineStage,
+  resolveSeatGenerationProfile,
+  seatOperatingText,
+  shouldIsolateCheckoutEnv,
+  skillAllowedForStage,
+  type OpenMontagePipelineStage,
+} from './seat-env.ts'
 
 const PROVIDER_NAME = 'openmontage'
 const RESOURCE_BASE = {
@@ -228,8 +249,8 @@ function assertOpenMontageRoot(root: string): void {
  * @param root - absolute OpenMontage checkout path substituted into skill bodies.
  * @returns a skill provider that lists and loads the two gateway skills.
  */
-function createProvider(root: string): SkillProvider {
-  const candidates: SkillCandidate[] = SKILLS.map(skill => ({
+function createProvider(root: string, stage?: OpenMontagePipelineStage): SkillProvider {
+  const candidates: SkillCandidate[] = SKILLS.filter(skill => skillAllowedForStage(skill.name, stage)).map(skill => ({
     name: skill.name,
     description: skill.description,
     invocation: INVOCATION,
@@ -262,24 +283,30 @@ function createProvider(root: string): SkillProvider {
 }
 
 /**
- * Validate the OpenMontage checkout, sync a Token Plan key into its `.env`,
- * and register the operating prompt plus gateway skills.
+ * Validate the OpenMontage checkout, optionally sync a Token Plan key into
+ * its `.env`, and register the operating prompt plus gateway skills.
+ * Seat-scoped ACP env (`OPENMONTAGE_ISOLATE_CHECKOUT_ENV`, generation
+ * profile, or pipeline stage) skips checkout `.env` writes so parallel
+ * seats sharing one tree do not clobber each other.
  * @param ctx - Cordis context with `skills`, `systemPrompt`, and `credentials`.
  *   `settings` is optional; when mounted, the Models page can override the
  *   Token Plan key ref, origin, and generation ids, and the checkout `.env`
- *   is rewritten live. A `credentials/updated` for a watched Token Plan ref
- *   rewrites the same block.
+ *   is rewritten live unless the seat isolates checkout env. A
+ *   `credentials/updated` for a watched Token Plan ref rewrites the same
+ *   block when isolation is off.
  * @param config - resolved plugin config.
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const root = resolveOpenMontageRoot(config)
   assertOpenMontageRoot(root)
   syncGitCheckout(root, 'openmontage', config.update ?? 'pull')
+  const isolateCheckoutEnv = shouldIsolateCheckoutEnv()
+  const stage = resolvePipelineStage()
   const entry = openMontageSettingsEntry(config)
   let settings = (): OpenMontageSettings => entry
   let live = false
   const writeTokenPlan = (): void => {
-    if (!live) return
+    if (!live || isolateCheckoutEnv) return
     void syncTokenPlanCheckout(
       root,
       mergeTokenPlanSyncConfig(config, settings()),
@@ -299,12 +326,18 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     writeTokenPlan()
   })
   live = true
-  await syncTokenPlanCheckout(root, mergeTokenPlanSyncConfig(config, settings()), ctx.credentials)
+  if (!isolateCheckoutEnv) {
+    await syncTokenPlanCheckout(root, mergeTokenPlanSyncConfig(config, settings()), ctx.credentials)
+  }
+  const profile = resolveSeatGenerationProfile(settings().generationProfile)
+  const operatingText = isolateCheckoutEnv
+    ? `${OPENMONTAGE_SECTION_TEXT} ${seatOperatingText(profile, stage)}`
+    : OPENMONTAGE_SECTION_TEXT
   ctx.systemPrompt.variable('openmontage_root', () => root)
   ctx.systemPrompt.section({
     name: 'openmontage',
     order: 150,
-    text: OPENMONTAGE_SECTION_TEXT,
+    text: operatingText,
   })
-  ctx.skills.registerProvider(() => createProvider(root))
+  ctx.skills.registerProvider(() => createProvider(root, stage))
 }

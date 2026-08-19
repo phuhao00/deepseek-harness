@@ -30,6 +30,8 @@ import {
   type PromptRequest,
   type PromptResponse,
   type SessionNotification,
+  type SetSessionConfigOptionRequest,
+  type SetSessionConfigOptionResponse,
   type StopReason,
   type Stream,
 } from '@agentclientprotocol/sdk'
@@ -39,6 +41,8 @@ import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/d
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { AcpContentError, admitAcpPrompt, assistantBlockToAcp, supportsAcpImagePrompts } from './content.ts'
 import { turnEndToStopReason } from './codec.ts'
+import { mountSessionMcpServers } from './mcp.ts'
+import { buildSessionModelCatalog, selectCatalogModel } from './models.ts'
 
 export const name = 'acp'
 /** The bridge creates and owns agents; every other concern is carried by the agent composition. */
@@ -87,6 +91,8 @@ interface SessionRecord {
   agent: Agent
   /** Exact owned-agent disposer; resolves after registry, loop, and session teardown. */
   dispose: () => Promise<void>
+  /** Last advertised model catalog; reused by `session/set_config_option`. */
+  catalog: Awaited<ReturnType<typeof buildSessionModelCatalog>>
   /** Ordered assistant-output delivery; every task contains its own failure. */
   outputTail: Promise<void>
   /** In-flight admission/turn/output lifecycle for exact settlement. */
@@ -309,6 +315,10 @@ export function apply(ctx: Context, config: AcpConfig): void {
         assertOpen()
         validateSessionParams(params)
         const sessionId = SessionId(randomUUID())
+        // Catalog lookup is independent of agent materialization; run it
+        // alongside create so Buzz's `models` probe is not serialized behind
+        // MCP server startup.
+        const catalogPromise = buildSessionModelCatalog(ctx, config)
         // No preset composition: the ACP bundle keeps the model-facing rows in
         // the host plane, so this agent reads them from the global layer. A
         // deployment that configures a roster has to join one here first
@@ -317,8 +327,19 @@ export function apply(ctx: Context, config: AcpConfig): void {
           sessionId,
           meta: { cwd: params.cwd },
           agentOptions: agentOptions(config),
+          // Buzz (and other ACP clients) pass stdio mcpServers on session/new
+          // so the seat can call client-owned tools such as the Buzz CLI.
+          setup: async (agentCtx) => {
+            await mountSessionMcpServers(agentCtx, params.mcpServers, params.cwd)
+          },
         })
         /* v8 ignore next 4 -- a real stdio close can race an in-flight create. */
+        if (closed) {
+          await handle.dispose()
+          throw internalError('connection closed during session/new')
+        }
+        const catalog = await catalogPromise
+        /* v8 ignore next 4 -- a real stdio close can race catalog lookup. */
         if (closed) {
           await handle.dispose()
           throw internalError('connection closed during session/new')
@@ -326,10 +347,40 @@ export function apply(ctx: Context, config: AcpConfig): void {
         sessions.set(sessionId, {
           agent: handle.agent,
           dispose: () => handle.dispose(),
+          catalog,
           outputTail: Promise.resolve(),
           inflight: undefined,
         })
-        return { sessionId }
+        return catalog === undefined
+          ? { sessionId }
+          : Object.assign(
+            { sessionId, configOptions: catalog.configOptions },
+            { models: catalog.models },
+          )
+      },
+
+      async setSessionConfigOption(
+        params: SetSessionConfigOptionRequest,
+      ): Promise<SetSessionConfigOptionResponse> {
+        assertOpen()
+        const record = requireSession(SessionId(params.sessionId))
+        if (params.configId !== 'model') {
+          throw invalidParams(`unsupported config option: ${params.configId}`)
+        }
+        if (typeof params.value !== 'string' || params.value.trim() === '') {
+          throw invalidParams('model value must be a non-empty string')
+        }
+        const catalog = record.catalog ?? await buildSessionModelCatalog(ctx, config)
+        if (catalog === undefined) {
+          throw invalidParams('no model catalog is available')
+        }
+        const selected = selectCatalogModel(catalog, params.value)
+        if (selected === undefined) {
+          throw invalidParams(`unknown model: ${params.value}`)
+        }
+        record.catalog = selected
+        record.agent.options.model = params.value
+        return { configOptions: selected.configOptions }
       },
 
       async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -541,5 +592,4 @@ function validateSessionParams(params: NewSessionRequest): void {
   if (params.additionalDirectories !== undefined && params.additionalDirectories.length > 0) {
     throw invalidParams('additionalDirectories is not supported')
   }
-  if (params.mcpServers.length > 0) throw invalidParams('mcpServers is not supported')
 }
