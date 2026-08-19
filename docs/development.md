@@ -146,11 +146,13 @@ The self-referential cordis demo can inspect and modify its live plugin runtime 
 pnpm run demo:cordis
 ```
 
-The ACP automation server exposes fresh agent sessions over JSON-RPC stdio and also needs `DEEPSEEK_API_KEY`:
+The ACP product server exposes fresh agent sessions over JSON-RPC stdio and also needs `DEEPSEEK_API_KEY`. Buzz and other ACP clients spawn this process:
 
 ```sh
-pnpm run demo:acp
+pnpm dsh --profile acp
 ```
+
+`pnpm run demo:acp` remains the example/snapshot composition under `examples/acp-agent`.
 
 ### TODO markers
 

@@ -1,8 +1,28 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fileURLToPath } from 'node:url'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-tools'
 import { makeBridgeHarness, textResponse, type BridgeHarness } from './harness.ts'
+
+const fixtureServerPath = fileURLToPath(
+  new URL('../../../mcp/mcp-client/tests/fixture-server.ts', import.meta.url),
+)
+
+function fixtureMcpServer(name = 'fixture'): {
+  name: string
+  command: string
+  args: string[]
+  env: { name: string; value: string }[]
+} {
+  return {
+    name,
+    command: process.execPath,
+    args: ['--import', 'tsx', fixtureServerPath],
+    env: [{ name: 'ACP_MCP_FIXTURE', value: '1' }],
+  }
+}
 
 describe('automation-only ACP bridge', () => {
   let harness: BridgeHarness | undefined
@@ -45,6 +65,72 @@ describe('automation-only ACP bridge', () => {
     const response = await harness.client.initialize({ protocolVersion: 0, clientCapabilities: {} })
     expect(response.protocolVersion).toBe(PROTOCOL_VERSION)
     await expect(harness.client.authenticate({ methodId: 'unused' })).resolves.toEqual({})
+  })
+
+  it('omits a model catalog when the adapter has no selectable models', async () => {
+    harness = await makeBridgeHarness({ config: { provider: 'other', model: undefined } })
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const created = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+    expect(created.configOptions ?? undefined).toBeUndefined()
+    expect('models' in created).toBe(false)
+  })
+
+  it('advertises the configured model catalog on session/new', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const created = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+    expect(created.configOptions).toEqual([expect.objectContaining({
+      type: 'select',
+      id: 'model',
+      category: 'model',
+      currentValue: 'mock',
+      options: [{ value: 'mock', name: 'Mock', displayName: 'Mock' }],
+    })])
+    expect(created).toMatchObject({
+      models: {
+        currentModelId: 'mock',
+        availableModels: [{ modelId: 'mock', name: 'Mock' }],
+      },
+    })
+  })
+
+  it('accepts session/set_config_option for a listed model', async () => {
+    harness = await makeBridgeHarness({
+      config: { model: 'kept' },
+      script: [textResponse('switched')],
+    })
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+    const updated = await harness.client.setSessionConfigOption({
+      sessionId,
+      configId: 'model',
+      value: 'mock',
+    })
+    expect(updated.configOptions).toEqual([expect.objectContaining({
+      category: 'model',
+      currentValue: 'mock',
+    })])
+    await harness.client.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'go' }],
+    })
+    expect(harness.adapter.requests[0]?.model).toBe('mock')
+  })
+
+  it('rejects session/set_config_option for an unknown model or option', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
+    await expect(harness.client.setSessionConfigOption({
+      sessionId,
+      configId: 'model',
+      value: 'nope',
+    })).rejects.toMatchObject({ code: -32602 })
+    await expect(harness.client.setSessionConfigOption({
+      sessionId,
+      configId: 'mode',
+      value: 'default',
+    })).rejects.toMatchObject({ code: -32602 })
   })
 
   it('creates a session, emits one committed answer, and settles the prompt', async () => {
@@ -164,7 +250,7 @@ describe('automation-only ACP bridge', () => {
     expect(harness.adapter.requests[0]?.system).toContain(`Automation persona for mock in ${process.cwd()}.`)
   })
 
-  it('requires one absolute workspace and no MCP servers', async () => {
+  it('requires one absolute workspace and rejects extra directories', async () => {
     harness = await makeBridgeHarness()
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
 
@@ -176,8 +262,26 @@ describe('automation-only ACP bridge', () => {
     })).rejects.toThrow(/additionalDirectories/)
     await expect(harness.client.newSession({
       cwd: process.cwd(),
-      mcpServers: [{ name: 'fs', command: 'node', args: [], env: [] }],
-    })).rejects.toThrow(/mcpServers/)
+      mcpServers: [{
+        type: 'http',
+        name: 'remote',
+        url: 'http://127.0.0.1:9',
+        headers: [],
+      }],
+    })).rejects.toThrow(/mcpServers transport http is not supported/)
+    await expect(harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [{
+        type: 'sse',
+        name: 'events',
+        url: 'http://127.0.0.1:9',
+        headers: [],
+      }],
+    })).rejects.toThrow(/mcpServers transport sse is not supported/)
+    await expect(harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [{ type: 'acp', name: 'nested', id: 'nested-1' }],
+    })).rejects.toThrow(/mcpServers transport acp is not supported/)
 
     await expect(harness.client.newSession({
       cwd: process.cwd(),
@@ -185,6 +289,33 @@ describe('automation-only ACP bridge', () => {
       additionalDirectories: [],
     })).resolves.toHaveProperty('sessionId')
   })
+
+  it('mounts stdio mcpServers onto the created agent only', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const { sessionId } = await harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [fixtureMcpServer()],
+    })
+    const agent = harness.ctx.agents.get(SessionId(sessionId))
+    expect(agent).toBeDefined()
+    expect(harness.ctx.tools.get('mcp__fixture__add', agent)).toBeDefined()
+    expect(harness.ctx.tools.get('mcp__fixture__add')).toBeUndefined()
+  }, 30_000)
+
+  it('fails session/new when a stdio MCP server cannot start', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    await expect(harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [{
+        name: 'dead',
+        command: process.execPath,
+        args: ['-e', 'process.exit(1)'],
+        env: [],
+      }],
+    })).rejects.toThrow(/mcpServers dead/)
+  }, 30_000)
 
   it('rejects empty and unadvertised image prompts before a turn starts', async () => {
     harness = await makeBridgeHarness()

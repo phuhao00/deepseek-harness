@@ -1,0 +1,37 @@
+# The dsh-acp-app bundle patch: ACP on stdio directly over dsh-base.
+# It mounts no Host, HTTP server, Web runtime, or browser plugin. An ordinary
+# provider plugin injects `cmdlineArgs`, parses this app's --help, then the
+# ACP transport row waits for that service so help never occupies stdout.
+
+- id: system-prompt
+  config:
+    persona: >-
+      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+
+# The shared module-reload HMR row stays off: stdout is reserved for ACP
+# JSON-RPC. The launcher's watch-only fallback still keeps the user patch
+# layers live until the process exits.
+- id: hmr
+  disabled: true
+
+- id: tools
+  config:
+    # Keep the same temporary process-wide Code Mode opt-in as the Web surface.
+    mode: !!js process.env.DSH_TOOLS_MODE
+
+- insert:
+    # Code Mode is a core execution capability, not a Web component.
+    - id: code-runtime
+      name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+    - id: acp-startup
+      name: '@deepseek-ai/dsh-acp-app/startup'
+
+    # Loader inject is merged into the plugin's own inject (agents). The row
+    # stays pending on --help because acpStartup is never provided then.
+    - id: acp
+      name: '@deepseek-ai/dsh-acp'
+      inject: [acpStartup, agentDefaultModel]
+      config:
+        provider: !!js ctx.agentDefaultModel.currentSelection().provider
+        model: !!js ctx.agentDefaultModel.currentSelection().model

@@ -2,7 +2,7 @@
 
 学习笔记，非正式产品文档。本组不是产品 API。组映射见 [packages/examples/README.md](../../../packages/examples/README.md)。仓库根 [`examples/`](../../../examples/AGENTS.md) 是可跑的 `cordis.yml` 叶子；本组是那些叶子加载的 bundle。
 
-`agent-spine-demo` 是共用脊柱；`acp-demo` 加上自动化入口；`jsonrpc-demo` 只引导外部配置。一次性产品执行走 `dsh --profile headless`。
+`agent-spine-demo` 是共用脊柱；`acp-demo` 加上自动化入口；`jsonrpc-demo` 只引导外部配置。一次性产品执行走 `dsh --profile headless`。产品 ACP 走 `dsh --profile acp`。
 
 ```mermaid
 flowchart TB

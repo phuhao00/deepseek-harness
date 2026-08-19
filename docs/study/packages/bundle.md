@@ -10,8 +10,10 @@ flowchart TB
   base --> mode{mode_bundle}
   mode -->|web| webApp[dsh_web_app]
   mode -->|headless| headless[dsh_headless]
+  mode -->|acp| acpApp[dsh_acp_app]
   webApp --> host[webServer_and_client]
   headless --> runner[headless_runner]
+  acpApp --> acp[dsh_acp_stdio]
 ```
 
 inbox bundle 从 dsh 安装解析；树外 bundle 用 `dsh plugin --profile <name> add <package>` 装进 profile。补丁按 id 整行替换 `config`，不合并字段。
@@ -36,7 +38,7 @@ flowchart LR
 2. 补丁对空根做一次 `insert`，挂上 timer、HMR、llm、session、typert 注册表/loader/gateway、agent、jobs、settings、tools 等共享行。
 3. 按模式会变的整行 `config` 不写在这里，留给 mode bundle 整行重述，避免一层补丁只改半个对象。
 4. 行序不决定加载；激活仍由 service inject 驱动。
-5. 后续 web-app / headless / 用户 `cordis.patch.yml` 按 id 覆盖或再 insert。
+5. 后续 web-app / headless / acp-app / 用户 `cordis.patch.yml` 按 id 覆盖或再 insert。
 
 源码走读：这是 profile 的地板，不是可执行入口。改共享默认值改这份 yml，不要在 mode bundle 里偷偷再插一套核。
 
@@ -72,6 +74,34 @@ sequenceDiagram
 7. stdout 打文本；`reason.kind === 'error'` 再写 stderr；exit 0 仅当 `completed`。
 
 源码走读：这是直接驱动 Agent，不是 HTTP 客户端。无 preset roster 时模型行在 host 平面，agent 读全局层。
+
+## `@deepseek-ai/dsh-acp-app` — stdio ACP
+
+- 角色：bundle + Consumer（`acp-startup` 解析 argv，`dsh-acp` 占 stdio）
+- ctx：无自有键；`inject: ['cmdlineArgs']`；ACP 行额外 inject `acpStartup`、`agentDefaultModel`
+- 入口：[packages/bundle/acp-app/src/index.ts](../../../packages/bundle/acp-app/src/index.ts)、[startup.ts](../../../packages/bundle/acp-app/src/startup.ts)、[cordis.patch.yml](../../../packages/bundle/acp-app/cordis.patch.yml)
+- 关键类型：`AcpStartupValues`
+
+```mermaid
+sequenceDiagram
+  participant Startup as acpStartup
+  participant Acp as dsh_acp
+  participant Agents as ctx_agents
+  Startup->>Startup: parseCmdline
+  Startup->>Acp: provide_acpStartup
+  Acp->>Agents: session_new_create
+  Agents->>Agents: setup_mount_stdio_mcp
+```
+
+实现逻辑：
+
+1. 补丁叠在 base 上：关 HMR、设 persona、insert `code-runtime`、`acp-startup`、`acp`。不挂 Host / HTTP / 浏览器行。
+2. `acp-startup` 用 commander 解析 `dsh --profile acp`；无位置参数，多余 token 是 usage error，`--help` 不 provide 服务。
+3. ACP 行 `inject: [acpStartup, agentDefaultModel]`，所以 help 不会占用 stdout。
+4. 产品命令是 `dsh --profile acp`。Buzz 自定义 harness：`command = dsh`，`args = --profile acp`。不要把 DSH 写进 Buzz `PRESET_HARNESSES`。
+5. `session/new` 把客户端 stdio `mcpServers` 挂到该座席的 scoped tools（Buzz CLI）。
+
+源码走读：这是协议服务器，不是 demo 叶子。`demo:acp` / `acp-demo` 仍给 examples/snapshot。
 
 ## `@deepseek-ai/dsh-web-app` — 浏览器面胶水
 

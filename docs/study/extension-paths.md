@@ -27,6 +27,7 @@ flowchart TB
 | 改审批、超时、提示词、UI、Cordis 服务 | [TypeScript 插件](#cordis-插件只能是-typescript) |
 | 人在浏览器里聊 | `dsh --profile web`，不是协议客户端 |
 | 一次性命令行任务、不需要协议客户端 | `dsh --profile headless` |
+| 给 Zed / Buzz 当 ACP agent | `dsh --profile acp` |
 
 默认：自己驱动选 SDK；对接生态或隔离子 agent 选 ACP；进 `ctx` 选 TypeScript 插件。
 
@@ -162,17 +163,17 @@ ACP 是行业协议 [Agent Client Protocol](https://agentclientprotocol.com)，�
 | `@deepseek-ai/dsh-acp` | 服务端 | 把 harness 暴露成一台 ACP agent |
 | `@deepseek-ai/dsh-subagent-acp` | 客户端 | 父 agent 每跑一个子任务就 spawn 一台新 ACP 进程 |
 
-`pnpm run demo:acp` 启动服务端组合。这是传输适配器，不是能力 seam，也不是 UI。编辑器导航、回放、斜杠命令、推理展示、计划、标题、工具卡片都不走这条线。
+`dsh --profile acp` 是产品 ACP 入口。`pnpm run demo:acp` 仍启动示例／快照组合。这是传输适配器，不是能力 seam，也不是 UI。编辑器导航、回放、斜杠命令、推理展示、计划、标题、工具卡片都不走这条线。
 
 ### 这台服务器实际讲的方法
 
-`initialize` 只协商版本，并且只公布基线文本提示词。不公布 image / audio / 嵌入上下文，也不公布 session 管理、编辑器、终端、文件系统、MCP。`authenticate` 是空操作。
+`initialize` 只协商版本。图片提示词仅在有附件存储且路由声明 image 时公布。不公布 session 管理、编辑器、终端、文件系统。`authenticate` 是空操作。`session/new` 会挂载客户端给的 stdio `mcpServers`（Buzz CLI），即使不广告 MCP 能力。
 
 | 方法 | 方向 | 行为 |
 |---|---|---|
 | `initialize` | 客户端 → | 版本 + 很瘦的能力广告 |
 | `authenticate` | 客户端 → | no-op |
-| `session/new` | 客户端 → | 用绝对 `cwd` 新建 agent；`additionalDirectories` / `mcpServers` 必须为空 |
+| `session/new` | 客户端 → | 用绝对 `cwd` 新建 agent；挂载 stdio `mcpServers`；非空 `additionalDirectories` 拒绝 |
 | `session/prompt` | 客户端 → | 拼文本块，卡住直到整个 agent idle，回 `stopReason` |
 | `session/cancel` | 客户端 → | 只取消这个 agent；未知 id 当没看见 |
 | `session/update` | 服务端 → | 每段已提交 assistant 文本一块 `agent_message_chunk` |
@@ -220,7 +221,7 @@ ACP 完整规范比这台服务器广告的能力大得多。Harness 这台实�
 
 - 写内部流水线、Python 里跑「修测试」→ SDK（`DeepSeekHarness.run`）
 - 父 agent 的 `subagent` 工具要隔离子进程 → ACP（挂 `dsh-subagent-acp`）
-- 给 Zed 当 agent → ACP（`demo:acp`）
+- 给 Zed / Buzz 当 agent → ACP（`dsh --profile acp`）
 - Go 服务要驱动 agent 且要事件流 / 续 session → 自己实现 SDK 客户端
 - Go 服务只是「丢任务、等结束、能取消」且愿意每次新 session → 实现 ACP 客户端，能跟其它 ACP agent 互换
 

@@ -23,7 +23,7 @@
 |---|---|
 | `initialize` | 协商受支持的版本。只有挂载持久附件存储，且配置的确切提供方／模型解析后明确支持图片输入时，才公布图片提示词能力；音频与嵌入上下文保持 false。不公布会话、编辑器、终端、文件系统或 MCP 能力。 |
 | `authenticate` | 空操作，因为服务器不公布身份验证方法。 |
-| `session/new` | 以绝对路径作为主 `cwd` 创建新 agent；接受空的 `additionalDirectories` 和 `mcpServers`，拒绝非空值。 |
+| `session/new` | 以绝对路径作为主 `cwd` 创建新 agent。接受空的 `additionalDirectories`，拒绝非空列表。Stdio `mcpServers`（Buzz 风格的 `{name,command,args,env}`）会作为 `dsh-mcp-client` 实例挂到该 agent 上；HTTP、SSE 和 ACP MCP 传输会被拒绝。 |
 | `session/prompt` | 保留文本与受支持内联图片块的顺序，将资源链接渲染为带方括号的文本引用，并拒绝音频、嵌入资源、格式错误／空输入，或在未公布能力时提交图片。它会先校验完整图片批次并重新检查会话的最新确切路由，再保存任一成员；在用户事件前提交全部图片；每个会话只允许一个正在处理的请求，并等待准入，以及消息入队后的整个 Agent 空闲和有序输出交付全部停稳。正常完全停稳时报告 `end_turn`；显式 ACP 取消、资源释放，或准入被丢弃的提示词（无轮次槽位）时报告 `cancelled`。 |
 | `session/cancel` | 标记并中止正在进行的准入，但不会取消或等待同一 Agent 上无关的既有工作；该提示词进入 Agent inbox 后，才会取消指定的 Agent 并等待自有区间停稳。不发布迟到的用户消息，提示词以 `cancelled` 结算。没有进行中的提示词时会取消自主工作；未知 id 为空操作。 |
 | `session/update` | 为已提交 `assistant/message` 中的每个非空文本或图片块发出一个 `agent_message_chunk`，并保留顺序。图片在以内联 base64 交付前会重新读取并校验完整性。省略原始增量和非消息事件。 |
@@ -41,7 +41,7 @@ ACP 要求每个提示词响应都携带 `stopReason`，但桥接层不声称它
 
 ## 运行
 
-`pnpm --dir /path/to/deepseek-harness run demo:acp` 启动仓库的自动化服务器组合。父 harness 可以通过 [`@deepseek-ai/dsh-subagent-acp`](../../subagent/subagent-acp/README.md) spawn 它；其他 ACP 客户端只需上述核心方法。
+产品 ACP 服务器是 `dsh --profile acp`。在本仓库中：`pnpm dsh --profile acp`。Buzz 和其他 ACP 客户端 spawn 该命令（自定义 harness：`command = dsh`，`args = --profile acp`）。`pnpm run demo:acp` 仍是 `examples/acp-agent` 下的示例／快照组合。父 harness 也可以通过 [`@deepseek-ai/dsh-subagent-acp`](../../subagent/subagent-acp/README.md) spawn 本包；其他 ACP 客户端只需上述核心方法。
 
 ## 模型体验
 
@@ -76,6 +76,6 @@ ACP 要求每个提示词响应都携带 `stopReason`，但桥接层不声称它
 ## 已知限制与暂缓事项
 
 - **仅新会话**：不支持加载、列出、恢复、删除和 fork。
-- **仅光栅图片和一个 workspace**：图片提示词要求持久存储以及明确声明支持图片输入的确切路由；只接受 PNG、JPEG、WebP 和 GIF。音频、嵌入资源、非空附加目录和 MCP 服务器都会被拒绝；资源链接只会展平为文本引用，不会获取其内容。
+- **仅光栅图片和一个 workspace**：图片提示词要求持久存储以及明确声明支持图片输入的确切路由；只接受 PNG、JPEG、WebP 和 GIF。音频、嵌入资源和非空附加目录都会被拒绝。`session/new` 带来的 stdio MCP 服务器会挂到已创建的 agent 上；HTTP、SSE 和 ACP MCP 传输会被拒绝。资源链接只会展平为文本引用，不会获取其内容。
 - **仅已提交答案**：实时进度、推理、工具活动、计划、标题和用量不会通过协议传输。
 - **由连接管理的生命周期**：一个连接会释放其所有会话；尚未实现单个会话关闭功能。

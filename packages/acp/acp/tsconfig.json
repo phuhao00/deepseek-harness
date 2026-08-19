@@ -24,6 +24,12 @@
       "path": "../../core/agent"
     },
     {
+      "path": "../../mcp/mcp-client"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
       "path": "../../interaction/user-approval"
     },
     {

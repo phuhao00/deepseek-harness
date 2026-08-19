@@ -356,6 +356,14 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       expect(headlessHelp.stderr).toBe('')
       expect(headlessHelp.stdout).toContain('Usage: dsh --profile headless')
 
+      const acpHelp = await runBuiltBin(['--profile', 'acp', '--help'], {
+        DSH_HOME: home,
+        DSH_TELEMETRY_DISABLED: '1',
+      })
+      expect(acpHelp.code).toBe(0)
+      expect(acpHelp.stderr).toBe('')
+      expect(acpHelp.stdout).toContain('Usage: dsh --profile acp')
+
       const missingTask = await runBuiltBin(['--profile', 'headless'], {
         DSH_HOME: home,
         DSH_TELEMETRY_DISABLED: '1',
@@ -731,6 +739,20 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       expect(code).toBe(0)
       expect(stderr).toBe('')
       expect(stdout).toContain("name: '@deepseek-ai/dsh-headless'")
+      expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-host-/)
+      expect(stdout).not.toContain("name: '@deepseek-ai/dsh-web-app'")
+      expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-client-/)
+    }, 30_000)
+
+    it('prints the acp profile without Host or browser layers', async () => {
+      const { stdout, code, stderr } = await runBuiltBin(
+        ['--profile', 'acp', '--dump-default-config'],
+        { DSH_HOME: home },
+      )
+      expect(code).toBe(0)
+      expect(stderr).toBe('')
+      expect(stdout).toContain('@deepseek-ai/dsh-acp-app')
+      expect(stdout).toContain("name: '@deepseek-ai/dsh-acp'")
       expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-host-/)
       expect(stdout).not.toContain("name: '@deepseek-ai/dsh-web-app'")
       expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-client-/)
