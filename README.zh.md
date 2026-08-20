@@ -34,6 +34,10 @@ pnpm run build
 pnpm dsh web
 ```
 
+### 其他入口模式
+
+`dsh --profile headless "task"` 会跑完一个任务后退出。`dsh --profile acp` 在 stdin/stdout 上提供 Agent Client Protocol。配置与参数见 [CLI README](apps/cli/README.md)。
+
 ## 社区与支持
 
 - 欢迎通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。

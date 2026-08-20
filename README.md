@@ -34,6 +34,10 @@ pnpm run build
 pnpm dsh web
 ```
 
+### Other entry modes
+
+`dsh --profile headless "task"` runs one job and exits. `dsh --profile acp` serves Agent Client Protocol on stdin/stdout. See the [CLI README](apps/cli/README.md) for profiles and flags.
+
 ## Community and support
 
 - Feel free to submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-18-openmontage-video-studio.md
-2026-08-18-openmontage-video-studio.md: 46a6364641098df403bd329555e2176ace8afad6
-2026-08-18-openmontage-video-studio.zh.md: 48c406b841ec69e539e6ac05c72fc291c984c4af
+2026-08-18-openmontage-video-studio.md: d74364689b947395a4a5d52ec3ad89c446467791
+2026-08-18-openmontage-video-studio.zh.md: 2ebdec49291aebeb9b31a16a9d2a5442beb964ea

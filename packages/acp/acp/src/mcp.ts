@@ -34,6 +34,7 @@ function internalError(detail: string): RequestError {
  * Fold ACP `{name,value}[]` env into the record mcp-client merges onto the
  * scrubbed parent environment.
  * @param env - ACP env array; later duplicates win.
+ * @returns name-to-value map for mcp-client.
  */
 export function mcpEnvRecord(env: McpServerStdio['env']): Record<string, string> {
   const out: Record<string, string> = {}
@@ -45,6 +46,7 @@ export function mcpEnvRecord(env: McpServerStdio['env']): Record<string, string>
  * Turn an ACP MCP `name` into a unique mcp-client `serverName`.
  * @param raw - client-supplied human-readable name (Buzz uses the CLI stem).
  * @param used - names already allocated in this session.
+ * @returns sanitized unique server name, also recorded in `used`.
  */
 export function allocateMcpServerName(raw: string, used: Set<string>): string {
   let base = raw.replace(SERVER_NAME_INVALID, '_')

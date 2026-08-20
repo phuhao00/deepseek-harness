@@ -338,15 +338,22 @@ Owns the default model selection independently of any Host or transport. The com
 currentSelection(): ModelSelection
 
 /**
+ * Read the preferred vision catalog id for image-prompt fallback.
+ * @returns a trimmed model id, or `undefined` when the field is unset or blank.
+ */
+preferredImageModel(): string | undefined
+
+/**
  * Save the complete default model selection. A deployment without a settings
- * provider keeps its composition entry.
+ * provider keeps its composition entry. A stored {@link AgentDefaultModelSettings.imageModel}
+ * is kept: composer model switches do not own that field.
  * @param next - resolved selection accepted by an entry point.
  * @returns fulfillment after the optional settings write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
 ```
 
-Source: [`packages/core/agent-default-model/src/index.ts:64`](../../packages/core/agent-default-model/src/index.ts)
+Source: [`packages/core/agent-default-model/src/index.ts:70`](../../packages/core/agent-default-model/src/index.ts)
 
 <a id="ctxagentloop--agentloop"></a>
 

@@ -93,8 +93,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'a detached provider, model, and optional reasoning selection.',
       },
       {
+        signature: 'preferredImageModel(): string | undefined',
+        description: 'Read the preferred vision catalog id for image-prompt fallback.',
+        parameters: [],
+        returns: 'a trimmed model id, or `undefined` when the field is unset or blank.',
+      },
+      {
         signature: 'async saveSelection(next: ModelSelection): Promise<void>',
-        description: 'Save the complete default model selection. A deployment without a settings provider keeps its composition entry.',
+        description: 'Save the complete default model selection. A deployment without a settings provider keeps its composition entry. A stored AgentDefaultModelSettings.imageModel is kept: composer model switches do not own that field.',
         parameters: [{ name: 'next', description: 'resolved selection accepted by an entry point.' }],
         returns: 'fulfillment after the optional settings write settles.',
       },

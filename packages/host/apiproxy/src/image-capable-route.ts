@@ -6,7 +6,11 @@
 
 import type { LlmModelInfo } from '@deepseek-ai/dsh-llm'
 
-/** Whether resolved model metadata explicitly declares image input. */
+/**
+ * Whether resolved model metadata explicitly declares image input.
+ * @param info - model metadata that may list input modalities.
+ * @returns true when `inputModalities` includes `image`.
+ */
 export function declaresImageInput(info: { inputModalities?: readonly string[] }): boolean {
   return info.inputModalities !== undefined && info.inputModalities.includes('image')
 }
