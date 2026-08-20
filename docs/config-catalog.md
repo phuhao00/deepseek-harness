@@ -29,7 +29,7 @@ export interface AcpConfig {
 
 Depends on: `Stream` (`@agentclientprotocol/sdk`)
 
-Source: [`packages/acp/acp/src/index.ts:71`](../packages/acp/acp/src/index.ts)
+Source: [`packages/acp/acp/src/index.ts:75`](../packages/acp/acp/src/index.ts)
 
 <a id="deepseek-aidsh-acp-demo"></a>
 
@@ -100,7 +100,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/agent-default-model/src/index.ts:41`](../packages/core/agent-default-model/src/index.ts)
+Source: [`packages/core/agent-default-model/src/index.ts:47`](../packages/core/agent-default-model/src/index.ts)
 
 <a id="deepseek-aidsh-agent-instructions"></a>
 
@@ -1420,6 +1420,94 @@ export interface Config {
 ```
 
 Source: [`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
+
+<a id="deepseek-aidsh-opencut"></a>
+
+## `@deepseek-ai/dsh-opencut`
+
+Requires: `skills` · `systemPrompt`
+
+```ts config-catalog
+/** Absolute path to a local OpenCut rewrite checkout. */
+export interface Config {
+  /**
+   * Absolute filesystem path of the OpenCut checkout.
+   * When omitted, `apply()` reads `OPENCUT_ROOT` and then validates the tree.
+   */
+  root?: string
+  /**
+   * Load-time git sync. `pull` fetches and fast-forwards a clean tree that is
+   * behind upstream; `check` fails when behind; `off` skips git.
+   */
+  update?: CheckoutUpdateMode
+}
+
+/** How `apply()` treats a checkout that is behind its upstream. */
+export type CheckoutUpdateMode = 'off' | 'check' | 'pull'
+```
+
+Source: [`packages/opencut/opencut/src/index.ts:61`](../packages/opencut/opencut/src/index.ts)
+
+<a id="deepseek-aidsh-openmontage"></a>
+
+## `@deepseek-ai/dsh-openmontage`
+
+Requires: `skills` · `systemPrompt` · `credentials`
+
+```ts config-catalog
+/** Absolute path to a local OpenMontage checkout. */
+export interface Config {
+  /**
+   * Absolute filesystem path of the OpenMontage checkout.
+   * When omitted, `apply()` reads `OPENMONTAGE_ROOT` and then validates the tree.
+   */
+  root?: string
+  /**
+   * Load-time git sync. `pull` fetches and fast-forwards a clean tree that is
+   * behind upstream; `check` fails when behind; `off` skips git.
+   */
+  update?: CheckoutUpdateMode
+  /**
+   * POSIX credential ref copied into the checkout `.env`. Any provider name is
+   * accepted (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, Qwen Token Plan, DashScope).
+   * When omitted, `OPENMONTAGE_GENERATION_API_KEY`, then the Qwen / DashScope
+   * refs, are tried.
+   */
+  tokenPlanKeyEnv?: string
+  /** API origin. Inferred only for known Qwen Token Plan / DashScope refs. */
+  tokenPlanBaseUrl?: string
+  /** Default Token Plan video model written to the checkout. */
+  tokenPlanVideoModel?: string
+  /** Default Token Plan image model written to the checkout. */
+  tokenPlanImageModel?: string
+  /** Default Token Plan speech model written to the checkout. */
+  tokenPlanTtsModel?: string
+  /** Default Qwen-Audio-TTS voice id written to the checkout. */
+  tokenPlanTtsVoice?: string
+  /** Default studio output duration in seconds (settings + studio form). */
+  outputDurationSeconds?: number
+  /** Default studio generation resolution (settings + studio form). */
+  outputResolution?: OpenMontageOutputResolution
+  /** Default upscale target after generation. Empty means no upscale. */
+  outputUpscaleTo?: OpenMontageUpscaleTarget | ''
+  /** Default studio generation profile (agent preference). */
+  generationProfile?: OpenMontageGenerationProfile
+}
+
+/** How `apply()` treats a checkout that is behind its upstream. */
+export type CheckoutUpdateMode = 'off' | 'check' | 'pull'
+
+/** One allowed studio output resolution. */
+export type OpenMontageOutputResolution = (typeof OUTPUT_RESOLUTIONS)[number]
+
+/** One allowed studio upscale target. */
+export type OpenMontageUpscaleTarget = (typeof UPSCALE_TARGETS)[number]
+
+/** One studio generation-profile id. */
+export type OpenMontageGenerationProfile = (typeof GENERATION_PROFILES)[number]
+```
+
+Source: [`packages/openmontage/openmontage/src/index.ts:132`](../packages/openmontage/openmontage/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 
@@ -3209,6 +3297,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-openmontage-studio` ([`packages/client/ui-openmontage-studio/src/index.ts`](../packages/client/ui-openmontage-studio/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-permission-presets` ([`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-plan` ([`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
@@ -3283,6 +3372,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 
 Imported as libraries by other packages; a `cordis.yml` cannot load them.
 
+- `@deepseek-ai/dsh-acp-app` ([`packages/bundle/acp-app/src/index.ts`](../packages/bundle/acp-app/src/index.ts))
 - `@deepseek-ai/dsh-acp-snapshot` ([`packages/test-support/acp-snapshot/src/index.ts`](../packages/test-support/acp-snapshot/src/index.ts))
 - `@deepseek-ai/dsh-agent-loop-testkit` ([`packages/test-support/agent-loop-testkit/src/index.ts`](../packages/test-support/agent-loop-testkit/src/index.ts))
 - `@deepseek-ai/dsh-anonymous-user-id` ([`packages/identity/anonymous-user-id/src/index.ts`](../packages/identity/anonymous-user-id/src/index.ts))
