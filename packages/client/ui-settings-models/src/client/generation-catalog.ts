@@ -75,6 +75,7 @@ export type GenerationCatalogField = keyof typeof GENERATION_CATALOG
  * Whether `id` is a catalog row for `field`.
  * @param field - generation settings field.
  * @param id - stored or draft id.
+ * @returns true when `id` matches a catalog choice for `field`.
  */
 export function isCatalogGenerationId(field: GenerationCatalogField, id: string): boolean {
   return GENERATION_CATALOG[field].some(choice => choice.id === id)
@@ -93,6 +94,7 @@ export function generationSelectValue(field: GenerationCatalogField, id: string)
 /**
  * Option label for one catalog row.
  * @param choice - catalog row.
+ * @returns `id`, or `label (id)` when label differs from id.
  */
 export function generationChoiceLabel(choice: GenerationChoice): string {
   return choice.label === undefined || choice.label === choice.id

@@ -49,6 +49,7 @@ export interface SessionModelSelection {
  * become an empty list so session/new still succeeds.
  * @param work - adapter `listModels` promise.
  * @param budgetMs - maximum wait.
+ * @returns the adapter list, or `[]` on timeout or rejection.
  */
 export function catalogOrEmpty(
   work: Promise<readonly LlmModelInfo[]>,
@@ -75,6 +76,7 @@ export function catalogOrEmpty(
  * @param ctx - bridge context; `llm` is optional so tests and --help never block.
  * @param selection - configured provider/model for this process.
  * @param budgetMs - catalog lookup budget.
+ * @returns ACP session model catalog, or `undefined` when no model is selectable.
  */
 export async function buildSessionModelCatalog(
   ctx: Pick<Context, 'get'>,
@@ -132,6 +134,7 @@ export async function buildSessionModelCatalog(
  * that id is not in the advertised list.
  * @param catalog - session/new catalog.
  * @param modelId - requested wire id.
+ * @returns catalog with `currentModelId` / select `currentValue` set to `modelId`.
  */
 export function selectCatalogModel(
   catalog: SessionModelCatalog,
