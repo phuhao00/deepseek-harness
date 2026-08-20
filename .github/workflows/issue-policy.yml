@@ -14,6 +14,9 @@ permissions:
 jobs:
   policy:
     name: Issue policy
+    # Canonical Issue Management lives on deepseek-harness/deepseek-harness;
+    # forks lack that org, Project app, and Issue inventory.
+    if: ${{ !github.event.repository.fork && github.repository == 'deepseek-harness/deepseek-harness' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy
