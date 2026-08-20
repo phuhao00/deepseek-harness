@@ -46,7 +46,7 @@ describe('ImageModelField', () => {
       <ImageModelField
         namespace={undefined}
         api={{ settings: { mutate: vi.fn() }, llm: { models: vi.fn() } } as never}
-        controller={new ModelsSettingsStore({} as never)}
+        controller={new ModelsSettingsStore({} as never, {} as never, {} as never)}
         readOnly={false}
         t={key => en[key]}
       />,

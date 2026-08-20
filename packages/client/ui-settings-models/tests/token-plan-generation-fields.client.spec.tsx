@@ -133,7 +133,7 @@ describe('TokenPlanGenerationFields', () => {
         namespace={undefined}
         rows={[]}
         api={credentialsApi() as never}
-        controller={new ModelsSettingsStore({} as never)}
+        controller={new ModelsSettingsStore({} as never, {} as never, {} as never)}
         readOnly={false}
         t={key => en[key]}
       />,
