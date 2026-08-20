@@ -10,9 +10,9 @@ Status: implemented
 
 ## 决策
 
-`@deepseek-ai/dsh-client-ui-openmontage-studio` 是 `dsh-web-app` 里的 Web 客户端插件。它注册 `sidebar.footer.action` 触发器和 `shell.page` 中心栏表单。对应 hole 存在时两个 slot 都会注册；在 `settings.describe` 列出 `openmontage` namespace 之前，触发器返回 null，因此未挂载 Host 适配器的默认 Web profile 不会出现按钮。`shell.page` 由 `ui-layout` 声明，盖住中心栏的 `conversation`，不遮挡侧栏。
+`@deepseek-ai/dsh-client-ui-openmontage-studio` 是 `dsh-web-app` 里的 Web 客户端插件。它注册 `sidebar.footer.action` 触发器和 `shell.page` 中心栏表单。对应 hole 存在时两个 slot 都会注册；在 `settings.describe` 列出 `openmontage` namespace 之前，触发器返回 null，因此未挂载 Host 适配器的默认 Web profile 不会出现按钮。`shell.page` 由 `ui-layout` 声明，盖住中心栏的 `conversation`，不遮挡侧栏。打开的页面在该栏上不透明绘制，避免下方对话 chrome 透出。
 
-提交只走既有动词：`settings.mutate` 写入 `outputDurationSeconds` / `outputResolution` / `outputUpscaleTo` / `generationProfile`，必要时 `workspaces.create`，然后 `workspaces.connectWorkspace`、`sessions.open` 和 `session.prompt(..., 'queue')`。生成清晰度包含 `480p`；可选超分目标必须严格更高（`720p` / `1080p` / `4k`）。表单显示所选 Workspace 绝对路径，以及默认同该路径（或另选）的输出目录；两条路径都写入首条用户消息。生成方案（`auto` / `cost` / `quality` / `drama`）是对 checkout 已有 Token Plan / 管线工具的偏好，不会切换未对接的供应商 API（MiniMax / Seedance / Kling 延后）。首条用户消息是 `formatStudioPrompt` 的输出，因此是已记录的 `user/message`。OpenWiki 上下文是通过 `host.listDirectory` 对所选 Workspace 下 `openwiki/` 或 `OpenWiki/` 目录做仅名称遍历。粘贴栏承载列表读不到的文本。Goldfish wiki MCP 不进入 `dsh --profile web`。
+工作台采用 compose-first：简报、生成方案、时长、清晰度与工作区/输出路径留在主路径；超分、OpenWiki 目录选择和粘贴栏收在折叠的「更多选项」里。提交只走既有动词：`settings.mutate` 写入 `outputDurationSeconds` / `outputResolution` / `outputUpscaleTo` / `generationProfile`，必要时 `workspaces.create`，然后 `workspaces.connectWorkspace`、`sessions.open` 和 `session.prompt(..., 'queue')`。生成清晰度包含 `480p`；可选超分目标必须严格更高（`720p` / `1080p` / `4k`）。表单显示所选 Workspace 绝对路径，以及默认同该路径（或另选）的输出目录；两条路径都写入首条用户消息。生成方案（`auto` / `cost` / `quality` / `drama`）是对 checkout 已有 Token Plan / 管线工具的偏好，不会切换未对接的供应商 API（MiniMax / Seedance / Kling 延后）。首条用户消息是 `formatStudioPrompt` 的输出，因此是已记录的 `user/message`。OpenWiki 上下文是通过 `host.listDirectory` 对所选 Workspace 下 `openwiki/` 或 `OpenWiki/` 目录做仅名称遍历。粘贴栏承载列表读不到的文本。Goldfish wiki MCP 不进入 `dsh --profile web`。
 
 Host 适配器仍拥有操作提示词和 skill。当用户消息给出输出目录或生成方案时，操作段要求 pipeline 仅用 checkout 已配置工具遵守它们。时长、清晰度、超分与方案不写入 OpenMontage 检出 `.env`。
 
@@ -21,6 +21,8 @@ Host 适配器仍拥有操作提示词和 skill。当用户消息给出输出目
 **只有 Settings 字段、没有页面。** 否决，因为开制作需要简报、Workspace 和首条用户消息，而不是模型页再加一组字段。
 
 **继续用 `shell.overlay` 弹层。** 否决，因为产品要求中心栏 SPA 表面；于是在 `ui-layout` 增加 `shell.page`，侧栏仍可操作。
+
+**始终展开完整表单。** 否决，改为 compose-first 工作台：主路径保留简报与规格；超分、wiki 选择与粘贴留在「更多选项」下，避免首屏与次要字段抢注意力。
 
 **从 harness 仓库 `openwiki/` 捆绑 slug/标题/摘要目录。** 否决，因为制作 Workspace 常常是 OpenMontage 检出，其 sandbox 读不到 harness 树；列出该 Workspace 自己的 `openwiki/` 目录才与 agent 将使用的目录一致。
 
@@ -32,8 +34,8 @@ Host 适配器仍拥有操作提示词和 skill。当用户消息给出输出目
 
 ## 后果
 
-在 Web host 上挂载 OpenMontage 的 profile 会在侧栏脚显示「视频制作」。打开后中心栏换成工作室页，直到关闭或提交成功。模型可见简报由本客户端包 README 的 Model Experience 和 `formatStudioPrompt` 文件快照拥有。默认的无密钥 headless snapshot 保持不变。
+在 Web host 上挂载 OpenMontage 的 profile 会在侧栏脚显示「视频制作」。打开后中心栏换成不透明工作室工作台，直到关闭或提交成功。模型可见简报由本客户端包 README 的 Model Experience 和 `formatStudioPrompt` 文件快照拥有。默认的无密钥 headless snapshot 保持不变。
 
 ## 测试
 
-包测试钉住 apply 注册与挂载信号、提交动词顺序、仅名称 wiki 遍历、中心页校验（含 480p + 超分），以及 `formatStudioPrompt` 文件快照。`ui-layout` 测试钉住 `shell.page` 声明。没有组装后的 headless example 回放，因为工作室是 Web 中心页。
+包测试钉住 apply 注册与挂载信号、提交动词顺序、仅名称 wiki 遍历、中心页校验（含 480p + 超分），以及 `formatStudioPrompt` 文件快照。`ui-layout` 测试钉住 `shell.page` 声明。没有组装后的 headless example 回放，因为工作室是 Web 的 `shell.page` 工作台。

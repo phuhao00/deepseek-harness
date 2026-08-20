@@ -22,6 +22,10 @@ Start a session and send:
 
 The agent can read and edit workspace files, run commands, delegate work, and maintain a plan. The Web UI asks before operations that require approval under the active permission policy.
 
+## Make a video (optional)
+
+When the OpenMontage adapter is mounted on the Web host, the sidebar foot shows **视频制作**. Open it, enter a brief and specs on the compose-first sheet, pick a workspace, and start production. Upscale, OpenWiki directory picks, and pasted excerpts sit under **更多选项**. The studio queues a structured first user message; the Host adapter owns the operating prompt and skills. See the [OpenMontage adapter](../../../packages/openmontage/openmontage/README.md) for checkout setup.
+
 ## Continue
 
 - [Configure models](./providers.md)

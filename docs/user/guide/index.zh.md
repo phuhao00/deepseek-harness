@@ -22,6 +22,10 @@
 
 Agent（智能体）可以读取和编辑工作区文件、运行命令、委派工作并维护计划。如果根据当前权限策略，某项操作需要审批，Web UI 会先询问你。
 
+## 制作视频（可选）
+
+当 Web host 挂载了 OpenMontage 适配器时，侧栏脚会显示**视频制作**。打开后在 compose-first 工作台填写简报与规格，选择工作区，然后开始制作。超分、OpenWiki 目录选择和粘贴摘录在**更多选项**里。工作室会排队一条结构化首条用户消息；操作提示词和 skill 由 Host 适配器拥有。检出与配置见 [OpenMontage 适配器](../../../packages/openmontage/openmontage/README.md)。
+
 ## 继续使用
 
 - [配置模型](./providers.md)

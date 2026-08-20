@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-openmontage-studio/README.md
-README.md: e99850df683f7937c2fb5e8fcf234cde675cb4f5
-README.zh.md: e35e1d5c873c78c9a17b675f73fa1f541aeb1591
+README.md: 85cd372f6d4e9aaa76de8f7c069e1a79a31f3292
+README.zh.md: b4b171194ded0ed1a934a50b9fbbb2840f1d4d07
