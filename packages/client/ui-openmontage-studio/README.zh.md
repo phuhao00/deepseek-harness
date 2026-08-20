@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Web 视频制作中心页。侧栏脚的 `sidebar.footer.action` 触发器和 `shell.page` 表单在对应 hole 存在时就会注册；在 `settings.describe` 列出 `openmontage` namespace 之前，触发器不渲染。页面盖住中心栏的 `conversation`，不遮挡侧栏。提交会把所选时长、生成清晰度与可选超分目标写入 `openmontage` 设置默认值；若用户挑选了新目录则创建 Workspace，再通过 `ctx.workspaces.connectWorkspace` 连接该 Workspace 的空白会话并打开它，然后排队一条结构化用户消息。Host 上的 OpenMontage 适配器拥有操作提示词和 skill；本包只格式化首条用户消息。OpenWiki 页面是所选 Workspace 下 `openwiki/`（或 `OpenWiki/`）树中的目录名，通过既有的 `host.listDirectory` 列出。不会列出 Markdown 文件；粘贴栏承载列表读不到的摘录。
+Web 视频制作以 `shell.page` 上的 compose-first 工作台呈现。侧栏脚的 `sidebar.footer.action` 触发器和 `shell.page` 表单在对应 hole 存在时就会注册；在 `settings.describe` 列出 `openmontage` namespace 之前，触发器不渲染。打开工作室会用不透明中心页盖住 `conversation`，不遮挡侧栏。工作台优先展示简报、生成方案、时长、清晰度与工作区/输出路径；超分、OpenWiki 目录选择和粘贴栏收在折叠的「更多选项」里。提交会把所选时长、生成清晰度、可选超分与生成方案写入 `openmontage` 设置默认值；若用户挑选了新目录则创建 Workspace，再通过 `ctx.workspaces.connectWorkspace` 连接该 Workspace 的空白会话并打开它，然后排队一条结构化用户消息。Host 上的 OpenMontage 适配器拥有操作提示词和 skill；本包只格式化首条用户消息。OpenWiki 页面是所选 Workspace 下 `openwiki/`（或 `OpenWiki/`）树中的目录名，通过既有的 `host.listDirectory` 列出。不会列出 Markdown 文件；粘贴栏承载列表读不到的摘录。
 
 ## 模型体验
 
@@ -45,4 +45,4 @@ OpenWiki 上下文：
 - **仅目录名** — `host.listDirectory` 只返回目录，因此 OpenWiki 条目是文件夹名，不是 Markdown 标题或首段摘要。
 - **无 Goldfish wiki MCP** — web profile 不挂载 Cursor 的 Goldfish 工具；个人 wiki 文本靠粘贴。
 - **无应用内时间线** — OpenCut 仍是后续对话交接，不是嵌入式编辑器。
-- **没有组装后的 headless snapshot** — 工作室是 web 中心页；模型可见正文由 `formatStudioPrompt` 文件快照钉住，而不是 headless example 回放。
+- **没有组装后的 headless snapshot** — 工作室是 web 的 `shell.page` 工作台；模型可见正文由 `formatStudioPrompt` 文件快照钉住，而不是 headless example 回放。
